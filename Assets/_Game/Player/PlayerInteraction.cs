@@ -12,7 +12,7 @@ public class PlayerInteraction
     private RaycastHit hit;
     private GameObject lastHitObject;
     private float lastRaycastTime;
-    private const float RAYCAST_COOLDOWN = 0.1f; // Ограничиваем частоту raycast
+    private const float RAYCAST_COOLDOWN = 1f; // Ограничиваем частоту raycast
 
     public PlayerInteraction(InventorySystem inventory, Transform cameraT, PlayerSettings settings)
     {
