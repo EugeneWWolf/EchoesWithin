@@ -10,6 +10,7 @@ public class PlayerController : MonoBehaviour
     [Header("References")]
     [SerializeField] private Transform playerCameraT;
     [SerializeField] private InventoryUI inventoryUI;
+    [SerializeField] private PlayerWallet wallet;
 
     private CharacterController controller;
     private PlayerMovement movement;
@@ -32,6 +33,19 @@ public class PlayerController : MonoBehaviour
         inventory = new InventorySystem(4);
         interaction = new PlayerInteraction(inventory, playerCameraT, settings);
 
+        // привязка кошелька к взаимодействию
+        if (wallet != null)
+            interaction.SetWallet(wallet);
+        else
+        {
+            // Автоматически создаём PlayerWallet если не назначен
+            wallet = GetComponent<PlayerWallet>();
+            if (wallet == null)
+                wallet = gameObject.AddComponent<PlayerWallet>();
+            interaction.SetWallet(wallet);
+            Debug.Log("✅ PlayerWallet автоматически создан и привязан");
+        }
+
         // привязка UI к инвентарю
         if (inventoryUI != null)
             inventoryUI.BindInventory(inventory);
@@ -53,6 +67,7 @@ public class PlayerController : MonoBehaviour
     public void OnLook(InputValue value) => cameraController.SetLookInput(value.Get<Vector2>());
     public void OnInteract() => interaction.TryInteract();
     public void OnDrop() => interaction.TryDrop();
+    public void OnSell() => interaction.TrySell();
     public void OnInventory1() => inventory.SetActiveSlot(0);
     public void OnInventory2() => inventory.SetActiveSlot(1);
     public void OnInventory3() => inventory.SetActiveSlot(2);

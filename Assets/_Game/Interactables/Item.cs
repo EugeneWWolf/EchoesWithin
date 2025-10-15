@@ -2,5 +2,6 @@ using UnityEngine;
 
 public class Item : MonoBehaviour
 {
-    public Sprite icon; // Назначь в инспекторе для каждого предмета
+    public Sprite icon; // Иконка для инвентаря
+    public int price = 10; // Стоимость предмета в условной валюте
 }

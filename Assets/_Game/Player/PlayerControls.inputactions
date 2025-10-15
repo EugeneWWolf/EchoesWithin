@@ -1,4 +1,5 @@
 {
+    "version": 1,
     "name": "PlayerControls",
     "maps": [
         {
@@ -81,6 +82,15 @@
                     "name": "Drop",
                     "type": "Button",
                     "id": "f52a993b-f72d-4720-be30-03a7228f5fc2",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Sell",
+                    "type": "Button",
+                    "id": "a3203d0d-d987-47fb-b594-eb4ec10d0e94",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -228,6 +238,17 @@
                     "processors": "",
                     "groups": "",
                     "action": "Drop",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "87976064-4be2-42e3-b1d1-d8cc6c37413d",
+                    "path": "<Keyboard>/c",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Sell",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
