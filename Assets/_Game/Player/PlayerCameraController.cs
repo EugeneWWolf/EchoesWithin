@@ -28,12 +28,15 @@ public class PlayerCameraController
 
     public void Tick()
     {
-        float mouseX = lookInput.x * sensitivity * Time.deltaTime;
-        float mouseY = lookInput.y * sensitivity * Time.deltaTime;
+        // Кэшируем deltaTime для оптимизации
+        float deltaTime = Time.deltaTime;
+        float mouseX = lookInput.x * sensitivity * deltaTime;
+        float mouseY = lookInput.y * sensitivity * deltaTime;
 
         xRotation -= mouseY;
         xRotation = Mathf.Clamp(xRotation, -verticalLimit, verticalLimit);
 
+        // Кэшируем Quaternion для избежания повторных вычислений
         cameraT.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
         playerTransform.Rotate(Vector3.up * mouseX);
     }

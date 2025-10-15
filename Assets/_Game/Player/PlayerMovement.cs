@@ -1,4 +1,4 @@
-using UnityEngine;
+п»їusing UnityEngine;
 
 public class PlayerMovement
 {
@@ -42,7 +42,7 @@ public class PlayerMovement
         controller.Move(velocity * Time.deltaTime);
     }
 
-    // опционально: runtime-сеттеры
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ: runtime-пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     public void SetSpeed(float s) => speed = s;
     public void SetGravity(float g) => gravity = g;
 }
