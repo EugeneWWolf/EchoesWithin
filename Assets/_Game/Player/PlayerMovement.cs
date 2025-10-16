@@ -10,9 +10,14 @@ public class PlayerMovement
     private float jumpHeight;
     private float gravity;
 
-    public PlayerMovement(CharacterController controller, PlayerSettings settings)
+    private PlayerStats playerStats;
+    private PlayerSettings settings;
+
+    public PlayerMovement(CharacterController controller, PlayerSettings settings, PlayerStats playerStats)
     {
         this.controller = controller;
+        this.settings = settings;
+        this.playerStats = playerStats;
         ApplySettings(settings);
     }
 
@@ -42,7 +47,18 @@ public class PlayerMovement
         controller.Move(velocity * Time.deltaTime);
     }
 
-    // �����������: runtime-�������
+    // Обновление статов из PlayerStats
+    public void UpdateStats(PlayerStats stats)
+    {
+        if (stats != null)
+        {
+            speed = stats.currentSpeed;
+            jumpHeight = stats.currentJumpHeight;
+            gravity = stats.currentGravity;
+        }
+    }
+
+    // runtime-настройки
     public void SetSpeed(float s) => speed = s;
     public void SetGravity(float g) => gravity = g;
 }

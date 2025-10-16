@@ -7,6 +7,7 @@ public class PlayerInteraction
     private readonly float interactDistance;
     private LayerMask interactLayer;
     private PlayerWallet wallet;
+    private PlayerStats playerStats;
 
     // Кэшированные объекты для оптимизации
     private Ray ray;
@@ -15,12 +16,13 @@ public class PlayerInteraction
     private float lastRaycastTime;
     private const float RAYCAST_COOLDOWN = 0.1f; // Ограничиваем частоту raycast
 
-    public PlayerInteraction(InventorySystem inventory, Transform cameraT, PlayerSettings settings)
+    public PlayerInteraction(InventorySystem inventory, Transform cameraT, PlayerSettings settings, PlayerStats playerStats)
     {
         this.inventory = inventory;
         this.cameraT = cameraT;
         this.interactDistance = settings.interactDistance;
         this.interactLayer = LayerMask.GetMask("Interactable"); // можешь заменить на поле в settings
+        this.playerStats = playerStats;
     }
 
     public void SetWallet(PlayerWallet w) => wallet = w;
@@ -45,14 +47,23 @@ public class PlayerInteraction
 
             lastHitObject = hit.collider.gameObject;
 
-            if (inventory.TryAdd(hit.collider.gameObject))
+            // Проверяем, находится ли игрок в зоне покупки
+            if (IsPlayerInShopZone())
             {
-                hit.collider.gameObject.SetActive(false);
-                Debug.Log("✅ Подобрал " + hit.collider.gameObject.name);
+                TryPurchaseItem(hit.collider.gameObject);
             }
             else
             {
-                Debug.Log("⚠ Слот занят, не могу подобрать");
+                // Обычное подбирание предметов
+                if (inventory.TryAdd(hit.collider.gameObject))
+                {
+                    hit.collider.gameObject.SetActive(false);
+                    Debug.Log("✅ Подобрал " + hit.collider.gameObject.name);
+                }
+                else
+                {
+                    Debug.Log("⚠ Слот занят, не могу подобрать");
+                }
             }
         }
         else
@@ -142,5 +153,124 @@ public class PlayerInteraction
             Object.Destroy(soldObj);
             Debug.Log($"💰 Продано: {itemData.name} за {payout}. Баланс: {wallet.Balance}");
         }
+    }
+
+    // === МЕТОДЫ ДЛЯ ПОКУПКИ ===
+
+    private bool IsPlayerInShopZone()
+    {
+        const float searchRadius = 2.0f;
+        Collider[] hits = Physics.OverlapSphere(cameraT.position, searchRadius);
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            if (hits[i] != null && hits[i].TryGetComponent<ShopZone>(out var shopZone))
+            {
+                return shopZone.IsPlayerInside;
+            }
+        }
+        return false;
+    }
+
+    private void TryPurchaseItem(GameObject itemObject)
+    {
+        Debug.Log("🛒 Попытка покупки предмета");
+
+        if (wallet == null)
+        {
+            Debug.LogWarning("⚠ Нет кошелька у игрока для покупки!");
+            return;
+        }
+
+        // Получаем базовый компонент Item
+        if (!itemObject.TryGetComponent<Item>(out var itemData))
+        {
+            Debug.Log("⚠ Этот объект нельзя купить: нет компонента Item.");
+            return;
+        }
+
+        // Находим зону покупки для получения цены
+        ShopZone shopZone = GetNearestShopZone();
+        if (shopZone == null)
+        {
+            Debug.Log("⚠ Не найдена зона покупки!");
+            return;
+        }
+
+        int purchasePrice = shopZone.GetPurchasePrice(itemData.price);
+
+        if (!wallet.TrySpend(purchasePrice))
+        {
+            Debug.Log($"💸 Недостаточно денег! Нужно: {purchasePrice}, есть: {wallet.Balance}");
+            return;
+        }
+
+        // Получаем название предмета из компонента Item
+        string itemName = itemData.itemName;
+
+        // Применяем эффекты предмета в зависимости от типа
+        if (itemObject.TryGetComponent<BuffItem>(out var buffItem))
+        {
+            buffItem.ApplyBuff(playerStats);
+            Debug.Log($"✅ Куплен и применен бонус: {itemName} за {purchasePrice}");
+        }
+        else if (itemObject.TryGetComponent<Weapon>(out var weapon))
+        {
+            // Добавляем оружие в инвентарь вместо мгновенного применения
+            if (inventory.TryAdd(itemObject))
+            {
+                itemObject.SetActive(false);
+                weapon.ApplyWeaponStats(playerStats);
+                Debug.Log($"✅ Куплено и экипировано оружие: {itemName} за {purchasePrice}");
+            }
+            else
+            {
+                // Возвращаем деньги если не удалось добавить в инвентарь
+                wallet.Add(purchasePrice);
+                Debug.Log("⚠ Не удалось добавить оружие в инвентарь, деньги возвращены");
+                return; // Не уничтожаем предмет
+            }
+        }
+        else if (itemObject.TryGetComponent<SellableItem>(out var sellableItem))
+        {
+            // Обычные предметы добавляем в инвентарь
+            if (inventory.TryAdd(itemObject))
+            {
+                itemObject.SetActive(false);
+                Debug.Log($"✅ Куплен предмет: {itemName} за {purchasePrice}");
+            }
+            else
+            {
+                // Возвращаем деньги если не удалось добавить в инвентарь
+                wallet.Add(purchasePrice);
+                Debug.Log("⚠ Не удалось добавить предмет в инвентарь, деньги возвращены");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("⚠ Неизвестный тип предмета для покупки!");
+            wallet.Add(purchasePrice); // Возвращаем деньги
+        }
+
+        // Уничтожаем предмет после покупки (кроме оружия, которое остается в инвентаре)
+        if (!itemObject.TryGetComponent<Weapon>(out _))
+        {
+            Object.Destroy(itemObject);
+        }
+    }
+
+    private ShopZone GetNearestShopZone()
+    {
+        const float searchRadius = 2.0f;
+        Collider[] hits = Physics.OverlapSphere(cameraT.position, searchRadius);
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            if (hits[i] != null && hits[i].TryGetComponent<ShopZone>(out var shopZone))
+            {
+                return shopZone;
+            }
+        }
+        return null;
     }
 }

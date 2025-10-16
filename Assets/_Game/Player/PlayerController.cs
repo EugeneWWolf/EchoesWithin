@@ -12,6 +12,9 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private InventoryUI inventoryUI;
     [SerializeField] private PlayerWallet wallet;
 
+    [Header("Player Stats")]
+    [SerializeField] private PlayerStats playerStats;
+
     private CharacterController controller;
     private PlayerMovement movement;
     private PlayerCameraController cameraController;
@@ -27,11 +30,19 @@ public class PlayerController : MonoBehaviour
         if (settings == null)
             Debug.LogWarning("⚠ PlayerSettings не назначен — будут использованы дефолтные значения!");
 
+        // Инициализируем статы игрока
+        if (playerStats == null)
+        {
+            playerStats = ScriptableObject.CreateInstance<PlayerStats>();
+            Debug.LogWarning("⚠ PlayerStats не назначен — создан дефолтный экземпляр!");
+        }
+        playerStats.RecalculateStats();
+
         // создаём подсистемы
-        movement = new PlayerMovement(controller, settings);
+        movement = new PlayerMovement(controller, settings, playerStats);
         cameraController = new PlayerCameraController(playerCameraT, transform, settings);
         inventory = new InventorySystem(4);
-        interaction = new PlayerInteraction(inventory, playerCameraT, settings);
+        interaction = new PlayerInteraction(inventory, playerCameraT, settings, playerStats);
 
         // привязка кошелька к взаимодействию
         if (wallet != null)
@@ -59,6 +70,9 @@ public class PlayerController : MonoBehaviour
     {
         movement.Tick();
         cameraController.Tick();
+
+        // Обновляем статы движения если они изменились
+        movement.UpdateStats(playerStats);
     }
 
     // === INPUT SYSTEM CALLBACKS ===
@@ -68,10 +82,29 @@ public class PlayerController : MonoBehaviour
     public void OnInteract() => interaction.TryInteract();
     public void OnDrop() => interaction.TryDrop();
     public void OnSell() => interaction.TrySell();
-    public void OnInventory1() => inventory.SetActiveSlot(0);
-    public void OnInventory2() => inventory.SetActiveSlot(1);
-    public void OnInventory3() => inventory.SetActiveSlot(2);
-    public void OnInventory4() => inventory.SetActiveSlot(3);
+    public void OnInventory1() => SetActiveInventorySlot(0);
+    public void OnInventory2() => SetActiveInventorySlot(1);
+    public void OnInventory3() => SetActiveInventorySlot(2);
+    public void OnInventory4() => SetActiveInventorySlot(3);
+
+    private void SetActiveInventorySlot(int slotIndex)
+    {
+        // Снимаем статы с предыдущего оружия
+        GameObject previousItem = inventory.GetItem(inventory.ActiveSlot);
+        if (previousItem != null && previousItem.TryGetComponent<Weapon>(out var previousWeapon))
+        {
+            previousWeapon.RemoveWeaponStats(playerStats);
+        }
+
+        inventory.SetActiveSlot(slotIndex);
+
+        // Применяем статы нового оружия
+        GameObject currentItem = inventory.GetItem(slotIndex);
+        if (currentItem != null && currentItem.TryGetComponent<Weapon>(out var currentWeapon))
+        {
+            currentWeapon.ApplyWeaponStats(playerStats);
+        }
+    }
 
     // runtime-настройки
     public void SetMouseSensitivity(float value) => cameraController.SetSensitivity(value);
