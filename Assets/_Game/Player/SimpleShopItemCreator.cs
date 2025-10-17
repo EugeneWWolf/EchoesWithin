@@ -75,8 +75,22 @@ public class SimpleShopItemCreator : MonoBehaviour
 
         // Назначаем созданные предметы в ShopZone
         shopZone.shopItems = createdItems;
+        Debug.Log($"🔧 SimpleShopItemCreator: Назначили {createdItems.Length} предметов в ShopZone");
 
-        Debug.Log($"✅ SimpleShopItemCreator: Создано {createdItems.Length} предметов для лавки");
+        // Принудительно размещаем предметы в лавке
+        shopZone.PlaceShopItems();
+
+        // Проверяем результат
+        int activeItems = 0;
+        for (int i = 0; i < createdItems.Length; i++)
+        {
+            if (createdItems[i] != null && createdItems[i].activeInHierarchy)
+            {
+                activeItems++;
+            }
+        }
+
+        Debug.Log($"✅ SimpleShopItemCreator: Создано {createdItems.Length} предметов, активно: {activeItems}");
     }
 
     private void SetupItem(GameObject item, ShopItemData data)

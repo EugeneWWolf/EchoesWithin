@@ -12,7 +12,8 @@ GameObject:
   - component: {fileID: 2956968674481894983}
   - component: {fileID: 4575849849054953836}
   - component: {fileID: 9044065941232974519}
-  m_Layer: 0
+  - component: {fileID: 6801980479491965200}
+  m_Layer: 3
   m_Name: Dagger
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -28,7 +29,7 @@ Transform:
   m_GameObject: {fileID: 6097537471242218876}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -3.15, y: 0.85448474, z: -6.95}
+  m_LocalPosition: {x: -4.3600006, y: 1.31, z: -12.03}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -107,3 +108,24 @@ MonoBehaviour:
   itemName: Item
   description: Item description
   itemType: 0
+--- !u!65 &6801980479491965200
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6097537471242218876}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.434252, y: 0.301058, z: 2.648557}
+  m_Center: {x: 0.062701, y: 0, z: 0.8087355}

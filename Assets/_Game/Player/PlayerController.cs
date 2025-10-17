@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using UnityEngine.InputSystem;
+using System.Collections;
 
 [RequireComponent(typeof(CharacterController))]
 public class PlayerController : MonoBehaviour
@@ -80,6 +81,13 @@ public class PlayerController : MonoBehaviour
     public void OnJump(InputValue value) => movement.TryJump(value.isPressed);
     public void OnLook(InputValue value) => cameraController.SetLookInput(value.Get<Vector2>());
     public void OnInteract() => interaction.TryInteract();
+    public void OnInteractHold(InputValue value)
+    {
+        if (value.isPressed)
+            interaction.StartHoldInteract();
+        else
+            interaction.StopHoldInteract();
+    }
     public void OnDrop() => interaction.TryDrop();
     public void OnSell() => interaction.TrySell();
     public void OnInventory1() => SetActiveInventorySlot(0);

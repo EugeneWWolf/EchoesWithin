@@ -20,13 +20,30 @@ public class ShopZone : MonoBehaviour
         PlaceShopItems();
     }
 
-    private void PlaceShopItems()
+    public void PlaceShopItems()
     {
         Debug.Log($"🛒 ShopZone: Начинаем размещение предметов. Количество: {(shopItems?.Length ?? 0)}");
 
         if (shopItems == null || shopItems.Length == 0)
         {
             Debug.LogWarning("⚠ ShopZone: Массив shopItems пуст или не назначен!");
+            return;
+        }
+
+        // Проверяем, не размещены ли уже предметы
+        bool alreadyPlaced = false;
+        for (int i = 0; i < shopItems.Length; i++)
+        {
+            if (shopItems[i] != null && shopItems[i].activeInHierarchy)
+            {
+                alreadyPlaced = true;
+                break;
+            }
+        }
+
+        if (alreadyPlaced)
+        {
+            Debug.Log("ℹ ShopZone: Предметы уже размещены, пропускаем повторное размещение");
             return;
         }
 

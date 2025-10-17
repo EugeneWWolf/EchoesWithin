@@ -16,6 +16,11 @@ public class PlayerInteraction
     private float lastRaycastTime;
     private const float RAYCAST_COOLDOWN = 0.1f; // Ограничиваем частоту raycast
 
+    // Переменные для длительного зажатия
+    private bool isHoldingInteract = false;
+    private TeleportDoor currentTeleportDoor;
+    private TeleportZone currentTeleportZone;
+
     public PlayerInteraction(InventorySystem inventory, Transform cameraT, PlayerSettings settings, PlayerStats playerStats)
     {
         this.inventory = inventory;
@@ -26,6 +31,14 @@ public class PlayerInteraction
     }
 
     public void SetWallet(PlayerWallet w) => wallet = w;
+
+    public void ResetHoldState()
+    {
+        isHoldingInteract = false;
+        currentTeleportDoor = null;
+        currentTeleportZone = null;
+        Debug.Log("🔄 Состояние зажатия кнопки сброшено");
+    }
 
     public void TryInteract()
     {
@@ -47,6 +60,14 @@ public class PlayerInteraction
 
             lastHitObject = hit.collider.gameObject;
 
+            // Проверяем, является ли объект телепорт-дверью
+            TeleportDoor teleportDoor = hit.collider.GetComponent<TeleportDoor>();
+            if (teleportDoor != null)
+            {
+                Debug.Log("🚪 Взаимодействие с дверью телепортации. Используйте зажатие кнопки для телепортации.");
+                return; // Не подбираем дверь!
+            }
+
             // Проверяем, находится ли игрок в зоне покупки
             if (IsPlayerInShopZone())
             {
@@ -54,15 +75,24 @@ public class PlayerInteraction
             }
             else
             {
-                // Обычное подбирание предметов
-                if (inventory.TryAdd(hit.collider.gameObject))
+                // Проверяем, что объект можно подобрать (не телепорт-дверь и не зона телепортации)
+                if (hit.collider.GetComponent<TeleportDoor>() == null &&
+                    hit.collider.GetComponent<TeleportZone>() == null)
                 {
-                    hit.collider.gameObject.SetActive(false);
-                    Debug.Log("✅ Подобрал " + hit.collider.gameObject.name);
+                    // Обычное подбирание предметов
+                    if (inventory.TryAdd(hit.collider.gameObject))
+                    {
+                        hit.collider.gameObject.SetActive(false);
+                        Debug.Log("✅ Подобрал " + hit.collider.gameObject.name);
+                    }
+                    else
+                    {
+                        Debug.Log("⚠ Слот занят, не могу подобрать");
+                    }
                 }
                 else
                 {
-                    Debug.Log("⚠ Слот занят, не могу подобрать");
+                    Debug.Log("ℹ Этот объект нельзя подобрать (телепорт-объект)");
                 }
             }
         }
@@ -70,6 +100,101 @@ public class PlayerInteraction
         {
             lastHitObject = null; // Сбрасываем при отсутствии попаданий
         }
+    }
+
+    public void StartHoldInteract()
+    {
+        if (isHoldingInteract)
+        {
+            Debug.Log("🔄 Уже держим кнопку взаимодействия");
+            return;
+        }
+
+        Debug.Log("🔄 Начало зажатия кнопки взаимодействия...");
+
+        // Сначала проверяем, есть ли обычные предметы для взаимодействия
+        ray.origin = cameraT.position;
+        ray.direction = cameraT.forward;
+
+        if (Physics.Raycast(ray, out hit, interactDistance, interactLayer))
+        {
+            Debug.Log($"🔍 Raycast попал в объект: {hit.collider.name}");
+
+            // Проверяем, является ли объект телепорт-дверью
+            TeleportDoor teleportDoor = hit.collider.GetComponent<TeleportDoor>();
+            if (teleportDoor != null)
+            {
+                Debug.Log("🚪 Найдена телепорт-дверь! Начинаем зажатие...");
+                currentTeleportDoor = teleportDoor;
+                currentTeleportDoor.StartHold();
+                isHoldingInteract = true;
+                return;
+            }
+
+            // Проверяем, является ли объект обычным предметом для подбора
+            if (hit.collider.GetComponent<TeleportDoor>() == null &&
+                hit.collider.GetComponent<TeleportZone>() == null)
+            {
+                Debug.Log("ℹ Объект не является телепорт-объектом, пропускаем зажатие");
+                return;
+            }
+        }
+
+        // Проверяем, находимся ли мы в зоне телепортации (только если не смотрим на обычные предметы)
+        TeleportZone teleportZone = GetNearbyTeleportZone();
+        if (teleportZone != null)
+        {
+            Debug.Log("🔄 Найдена зона телепортации! Начинаем зажатие...");
+            currentTeleportZone = teleportZone;
+            currentTeleportZone.StartHold();
+            isHoldingInteract = true;
+        }
+        else
+        {
+            Debug.Log("ℹ Зона телепортации не найдена");
+        }
+    }
+
+    public void StopHoldInteract()
+    {
+        if (!isHoldingInteract)
+        {
+            Debug.Log("🔄 Не держим кнопку взаимодействия");
+            return;
+        }
+
+        Debug.Log("🔄 Остановка зажатия кнопки взаимодействия...");
+
+        if (currentTeleportDoor != null)
+        {
+            Debug.Log("🚪 Остановка зажатия двери");
+            currentTeleportDoor.StopHold();
+            currentTeleportDoor = null;
+        }
+
+        if (currentTeleportZone != null)
+        {
+            Debug.Log("🔄 Остановка зажатия зоны телепортации");
+            currentTeleportZone.StopHold();
+            currentTeleportZone = null;
+        }
+
+        isHoldingInteract = false;
+    }
+
+    private TeleportZone GetNearbyTeleportZone()
+    {
+        const float searchRadius = 2.0f;
+        Collider[] hits = Physics.OverlapSphere(cameraT.position, searchRadius);
+
+        for (int i = 0; i < hits.Length; i++)
+        {
+            if (hits[i] != null && hits[i].TryGetComponent<TeleportZone>(out var teleportZone))
+            {
+                return teleportZone;
+            }
+        }
+        return null;
     }
 
     public void TryDrop()
