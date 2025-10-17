@@ -140,6 +140,9 @@ public class ItemFactory : MonoBehaviour
         // Устанавливаем слой
         SetupLayer(item);
 
+        // Добавляем физику для BuffItem и Weapon
+        SetupPhysics(item);
+
         Debug.Log($"🏭 ItemFactory: Настроен предмет {spawnData.itemName} в позиции {spawnData.position}");
     }
 
@@ -160,8 +163,22 @@ public class ItemFactory : MonoBehaviour
                 {
                     buffItem = item.AddComponent<BuffItem>();
                 }
-                buffItem.statType = spawnData.statType;
+
+                // Случайно выбираем тип стата для BuffItem (только скорость и прыжок)
+                // Другие типы зелий (урон, здоровье) можно создавать вручную
+                StatType[] availableStats = { StatType.Speed, StatType.JumpHeight };
+                buffItem.statType = availableStats[Random.Range(0, availableStats.Length)];
                 buffItem.statValue = spawnData.statValue;
+
+                // Обновляем название предмета в зависимости от типа стата
+                string statName = GetStatDisplayName(buffItem.statType);
+                item.GetComponent<Item>().itemName = $"{statName} Potion (+{buffItem.statValue:F1})";
+                item.GetComponent<Item>().description = $"Зелье, увеличивающее {statName.ToLower()} на {buffItem.statValue:F1}";
+
+                // Устанавливаем цвет зелья в зависимости от типа стата
+                SetPotionColor(item, buffItem.statType);
+
+                Debug.Log($"🏭 ItemFactory: Создан {buffItem.statType} зелье со значением {buffItem.statValue:F1} (фабрика создает только Speed/Jump зелья)");
                 break;
 
             case ItemType.Weapon:
@@ -190,6 +207,104 @@ public class ItemFactory : MonoBehaviour
         if (interactableLayer != -1)
         {
             item.layer = interactableLayer;
+        }
+    }
+
+    private void SetupPhysics(GameObject item)
+    {
+        // Добавляем Rigidbody для физики
+        Rigidbody rb = item.GetComponent<Rigidbody>();
+        if (rb == null)
+        {
+            rb = item.AddComponent<Rigidbody>();
+        }
+
+        // Настраиваем физику
+        rb.useGravity = true;
+        rb.linearDamping = 1f; // Сопротивление воздуха
+        rb.angularDamping = 2f; // Сопротивление вращению
+
+        // Делаем основной коллайдер не триггером для физики
+        Collider collider = item.GetComponent<Collider>();
+        if (collider != null)
+        {
+            collider.isTrigger = false;
+        }
+
+        // Добавляем триггер для взаимодействия
+        GameObject interactionTrigger = new GameObject("InteractionTrigger");
+        interactionTrigger.transform.SetParent(item.transform);
+        interactionTrigger.transform.localPosition = Vector3.zero;
+        interactionTrigger.layer = LayerMask.NameToLayer("Interactable");
+
+        BoxCollider triggerCollider = interactionTrigger.AddComponent<BoxCollider>();
+        triggerCollider.isTrigger = true;
+        if (collider != null)
+        {
+            triggerCollider.size = collider.bounds.size * 1.2f;
+        }
+
+        // Добавляем компонент для идентификации
+        interactionTrigger.AddComponent<ItemInteractionTrigger>().item = item;
+
+        Debug.Log($"🏭 ItemFactory: Добавлена физика для {item.name} (BuffItem/Weapon)");
+    }
+
+    /// <summary>
+    /// Получает отображаемое название для типа стата
+    /// </summary>
+    private string GetStatDisplayName(StatType statType)
+    {
+        switch (statType)
+        {
+            case StatType.Speed:
+                return "Speed";
+            case StatType.JumpHeight:
+                return "Jump";
+            case StatType.Damage:
+                return "Damage";
+            case StatType.Health:
+                return "Health";
+            case StatType.Gravity:
+                return "Gravity";
+            default:
+                return "Unknown";
+        }
+    }
+
+    /// <summary>
+    /// Устанавливает цвет зелья в зависимости от типа стата
+    /// </summary>
+    private void SetPotionColor(GameObject potion, StatType statType)
+    {
+        Renderer renderer = potion.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            Color potionColor = GetPotionColor(statType);
+            renderer.material.color = potionColor;
+            Debug.Log($"🎨 Установлен цвет зелья: {statType} = {potionColor}");
+        }
+    }
+
+    /// <summary>
+    /// Получает цвет зелья для типа стата
+    /// </summary>
+    private Color GetPotionColor(StatType statType)
+    {
+        switch (statType)
+        {
+            case StatType.Speed:
+                return Color.blue; // Синий для скорости
+            case StatType.JumpHeight:
+                return Color.green; // Зеленый для прыжка
+            case StatType.Damage:
+                return Color.red; // Красный для урона (не используется фабрикой)
+            case StatType.Health:
+                return Color.yellow; // Желтый для здоровья (не используется фабрикой)
+            case StatType.Gravity:
+                return Color.magenta; // Пурпурный для гравитации (не используется фабрикой)
+            default:
+                return Color.white; // Белый по умолчанию
         }
     }
 

@@ -91,8 +91,8 @@ public class PlayerInteraction
             }
 
             // Проверяем, не тот же ли объект (избегаем повторных взаимодействий)
-            //if (lastHitObject == targetItem)
-                //return;
+            if (lastHitObject == targetItem)
+                return;
 
             lastHitObject = targetItem;
 
@@ -129,10 +129,15 @@ public class PlayerInteraction
                     {
                         // BuffItem применяется и уничтожается, не добавляется в инвентарь
                         buffItem.ApplyBuff(playerStats);
-                        // Обновляем только урон после применения бонуса
-                        if (playerController != null && playerController.combat != null)
+
+                        // Обновляем статы движения после применения бонуса
+                        if (playerController != null)
                         {
-                            playerController.combat.OnBuffApplied();
+                            playerController.UpdateMovementStats();
+                            if (playerController.combat != null)
+                            {
+                                playerController.combat.OnBuffApplied();
+                            }
                         }
 
                         // Уничтожаем BuffItem после применения (он одноразовый)
@@ -508,10 +513,14 @@ public class PlayerInteraction
         {
             buffItem.ApplyBuff(playerStats);
 
-            // Обновляем только урон после применения бонуса
-            if (playerController != null && playerController.combat != null)
+            // Обновляем статы движения после применения бонуса
+            if (playerController != null)
             {
-                playerController.combat.OnBuffApplied();
+                playerController.UpdateMovementStats();
+                if (playerController.combat != null)
+                {
+                    playerController.combat.OnBuffApplied();
+                }
             }
 
             // Уничтожаем BuffItem после применения (он одноразовый)

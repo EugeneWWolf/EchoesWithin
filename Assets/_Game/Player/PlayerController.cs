@@ -156,7 +156,9 @@ public class PlayerController : MonoBehaviour
     // Обновление статов движения (для внешних вызовов)
     public void UpdateMovementStats()
     {
+        Debug.Log($"🔄 PlayerController: Обновляем статы движения - Speed: {playerStats.currentSpeed:F1}, Jump: {playerStats.currentJumpHeight:F1}");
         movement.ForceUpdateStats();
+        Debug.Log($"✅ PlayerController: Статы движения обновлены");
     }
 
     // Диагностика урона

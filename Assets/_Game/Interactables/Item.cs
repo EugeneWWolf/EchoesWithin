@@ -32,8 +32,35 @@ public class BuffItem : MonoBehaviour
 
     public void ApplyBuff(PlayerStats playerStats)
     {
+        // Сохраняем старые значения для сравнения
+        float oldSpeed = playerStats.currentSpeed;
+        float oldJump = playerStats.currentJumpHeight;
+        float oldDamage = playerStats.currentDamage;
+        float oldHealth = playerStats.currentHealth;
+
         playerStats.AddStatModifier(statType, statValue);
-        Debug.Log($"✅ Применен бонус: {statType} +{statValue}");
+
+        // Логируем изменения
+        Debug.Log($"🧪 Применен бонус: {statType} +{statValue}");
+        Debug.Log($"📊 Статы до: Speed={oldSpeed:F1}, Jump={oldJump:F1}, Damage={oldDamage:F1}, Health={oldHealth:F1}");
+        Debug.Log($"📊 Статы после: Speed={playerStats.currentSpeed:F1}, Jump={playerStats.currentJumpHeight:F1}, Damage={playerStats.currentDamage:F1}, Health={playerStats.currentHealth:F1}");
+
+        // Показываем конкретное изменение
+        switch (statType)
+        {
+            case StatType.Speed:
+                Debug.Log($"🏃 Скорость: {oldSpeed:F1} → {playerStats.currentSpeed:F1} (+{playerStats.currentSpeed - oldSpeed:F1})");
+                break;
+            case StatType.JumpHeight:
+                Debug.Log($"🦘 Прыжок: {oldJump:F1} → {playerStats.currentJumpHeight:F1} (+{playerStats.currentJumpHeight - oldJump:F1})");
+                break;
+            case StatType.Damage:
+                Debug.Log($"⚔ Урон: {oldDamage:F1} → {playerStats.currentDamage:F1} (+{playerStats.currentDamage - oldDamage:F1})");
+                break;
+            case StatType.Health:
+                Debug.Log($"❤ Здоровье: {oldHealth:F1} → {playerStats.currentHealth:F1} (+{playerStats.currentHealth - oldHealth:F1})");
+                break;
+        }
     }
 }
 
