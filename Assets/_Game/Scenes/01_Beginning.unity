@@ -3141,7 +3141,7 @@ MonoBehaviour:
     price: 50
     type: 2
     statType: 3
-    statValue: 5
+    statValue: 50
     description: Test123
 --- !u!1001 &1539896773
 PrefabInstance:

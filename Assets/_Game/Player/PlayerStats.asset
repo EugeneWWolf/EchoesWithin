@@ -20,8 +20,8 @@ MonoBehaviour:
   currentSpeed: 0
   currentJumpHeight: 0
   currentGravity: 0
-  currentDamage: 0
-  currentHealth: 0
+  currentDamage: 2
+  currentHealth: 100
   speedModifier: 0
   jumpModifier: 0
   gravityModifier: 0
