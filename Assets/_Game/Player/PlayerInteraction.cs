@@ -135,7 +135,7 @@ public class PlayerInteraction
                         }
 
                         // Уничтожаем BuffItem после применения (он одноразовый)
-                        targetItem.SetActive(false);
+                        Object.Destroy(targetItem);
                         Debug.Log($"✅ Подобран и применен бонус: {targetItem.name} (предмет уничтожен)");
                     }
                     else
