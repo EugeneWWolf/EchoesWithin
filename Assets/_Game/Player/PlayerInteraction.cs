@@ -90,12 +90,6 @@ public class PlayerInteraction
                 Debug.Log($"🔍 Используем прямой объект: {targetItem.name}");
             }
 
-            // Проверяем, не тот же ли объект (избегаем повторных взаимодействий)
-            if (lastHitObject == targetItem)
-                return;
-
-            lastHitObject = targetItem;
-
             // Проверяем, является ли объект телепорт-дверью
             TeleportDoor teleportDoor = targetItem.GetComponent<TeleportDoor>();
             if (teleportDoor != null)
@@ -181,10 +175,6 @@ public class PlayerInteraction
                     Debug.Log("ℹ Этот объект нельзя подобрать (телепорт-объект)");
                 }
             }
-        }
-        else
-        {
-            lastHitObject = null; // Сбрасываем при отсутствии попаданий
         }
     }
 
