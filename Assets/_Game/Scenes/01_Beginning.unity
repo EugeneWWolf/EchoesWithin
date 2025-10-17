@@ -4860,8 +4860,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DungeonItemSpawner
   spawnOnStart: 1
-  spawnInterval: 10
-  maxItemsInDungeon: 20
+  spawnInterval: 2
+  maxItemsInDungeon: 100
   spawnRadius: 8.07
   dungeonCenter: {fileID: 1852820154}
   groundLayer:
