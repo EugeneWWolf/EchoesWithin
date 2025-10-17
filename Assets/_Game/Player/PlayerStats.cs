@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 [CreateAssetMenu(fileName = "PlayerStats", menuName = "Config/PlayerStats")]
 public class PlayerStats : ScriptableObject
@@ -26,11 +26,11 @@ public class PlayerStats : ScriptableObject
 
     public void RecalculateStats()
     {
-        currentSpeed = baseSpeed + speedModifier;
-        currentJumpHeight = baseJumpHeight + jumpModifier;
-        currentGravity = baseGravity + gravityModifier;
-        currentDamage = baseDamage + damageModifier;
-        currentHealth = baseHealth + healthModifier;
+        currentSpeed = Mathf.Max(0.1f, baseSpeed + speedModifier); // Минимум 0.1 для движения
+        currentJumpHeight = Mathf.Max(0.1f, baseJumpHeight + jumpModifier); // Минимум 0.1 для прыжка
+        currentGravity = Mathf.Max(-50f, baseGravity + gravityModifier); // Максимум -50 для гравитации
+        currentDamage = Mathf.Max(0f, baseDamage + damageModifier);
+        currentHealth = Mathf.Max(1f, baseHealth + healthModifier); // Минимум 1 HP
     }
 
     public void AddStatModifier(StatType statType, float value)

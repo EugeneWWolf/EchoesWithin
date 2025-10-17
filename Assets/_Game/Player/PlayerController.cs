@@ -58,6 +58,9 @@ public class PlayerController : MonoBehaviour
             Debug.Log("✅ PlayerWallet автоматически создан и привязан");
         }
 
+        // Привязываем ссылку на PlayerController к взаимодействию
+        interaction.SetPlayerController(this);
+
         // привязка UI к инвентарю
         if (inventoryUI != null)
             inventoryUI.BindInventory(inventory);
@@ -71,9 +74,6 @@ public class PlayerController : MonoBehaviour
     {
         movement.Tick();
         cameraController.Tick();
-
-        // Обновляем статы движения если они изменились
-        movement.UpdateStats(playerStats);
     }
 
     // === INPUT SYSTEM CALLBACKS ===
@@ -87,6 +87,11 @@ public class PlayerController : MonoBehaviour
             interaction.StartHoldInteract();
         else
             interaction.StopHoldInteract();
+    }
+    public void OnResetStats(InputValue value)
+    {
+        if (value.isPressed)
+            ResetStatsToDefaults();
     }
     public void OnDrop() => interaction.TryDrop();
     public void OnSell() => interaction.TrySell();
@@ -116,4 +121,62 @@ public class PlayerController : MonoBehaviour
 
     // runtime-настройки
     public void SetMouseSensitivity(float value) => cameraController.SetSensitivity(value);
+
+    // Обновление статов движения (для внешних вызовов)
+    public void UpdateMovementStats()
+    {
+        movement.ForceUpdateStats();
+    }
+
+    // Методы для сброса статов
+    public void ResetStatsToDefaults()
+    {
+        if (playerStats == null) return;
+
+        Debug.Log("🔄 PlayerController: Сброс статов к значениям по умолчанию");
+
+        // Сбрасываем базовые значения
+        playerStats.baseSpeed = 5f;
+        playerStats.baseJumpHeight = 2f;
+        playerStats.baseGravity = -9.8f;
+        playerStats.baseDamage = 10f;
+        playerStats.baseHealth = 100f;
+
+        // Сбрасываем модификаторы
+        playerStats.speedModifier = 0f;
+        playerStats.jumpModifier = 0f;
+        playerStats.gravityModifier = 0f;
+        playerStats.damageModifier = 0f;
+        playerStats.healthModifier = 0f;
+
+        // Пересчитываем статы
+        playerStats.RecalculateStats();
+
+        // Обновляем статы движения
+        movement.ForceUpdateStats();
+
+        Debug.Log("✅ PlayerController: Статы сброшены к значениям по умолчанию");
+    }
+
+    public void ResetModifiersOnly()
+    {
+        if (playerStats == null) return;
+
+        Debug.Log("🔄 PlayerController: Сброс только модификаторов");
+
+        // Сбрасываем только модификаторы
+        playerStats.speedModifier = 0f;
+        playerStats.jumpModifier = 0f;
+        playerStats.gravityModifier = 0f;
+        playerStats.damageModifier = 0f;
+        playerStats.healthModifier = 0f;
+
+        // Пересчитываем статы
+        playerStats.RecalculateStats();
+
+        // Обновляем статы движения
+        movement.ForceUpdateStats();
+
+        Debug.Log("✅ PlayerController: Модификаторы статов сброшены");
+    }
 }

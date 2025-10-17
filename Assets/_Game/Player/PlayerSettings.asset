@@ -11,10 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 78447f88ca8b1744585920b3ab20a17c, type: 3}
   m_Name: PlayerSettings
-  m_EditorClassIdentifier: 
-  speed: 5
-  jumpHeight: 2
-  gravity: -9.8
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerSettings
   mouseSensitivity: 20
   verticalLookLimit: 80
   interactDistance: 3

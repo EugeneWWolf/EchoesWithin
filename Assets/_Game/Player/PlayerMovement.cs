@@ -23,10 +23,20 @@ public class PlayerMovement
 
     public void ApplySettings(PlayerSettings settings)
     {
-        if (settings == null) return;
-        speed = settings.speed;
-        jumpHeight = settings.jumpHeight;
-        gravity = settings.gravity;
+        // PlayerSettings больше не содержит статы движения
+        // Все статы теперь управляются через PlayerStats
+        if (playerStats != null)
+        {
+            UpdateStats(playerStats);
+        }
+        else
+        {
+            // Если нет PlayerStats, используем значения по умолчанию
+            speed = 5f;
+            jumpHeight = 2f;
+            gravity = -9.8f;
+            Debug.LogWarning("⚠ PlayerMovement: PlayerStats не найден, используются значения по умолчанию");
+        }
     }
 
     public void SetMoveInput(Vector2 input) => moveInput = new Vector3(input.x, 0f, input.y);
@@ -55,6 +65,16 @@ public class PlayerMovement
             speed = stats.currentSpeed;
             jumpHeight = stats.currentJumpHeight;
             gravity = stats.currentGravity;
+        }
+    }
+
+    // Принудительное обновление статов
+    public void ForceUpdateStats()
+    {
+        if (playerStats != null)
+        {
+            UpdateStats(playerStats);
+            Debug.Log($"📊 PlayerMovement: Принудительно обновлены статы - Speed: {speed}, Jump: {jumpHeight}, Gravity: {gravity}");
         }
     }
 

@@ -8,6 +8,7 @@ public class PlayerInteraction
     private LayerMask interactLayer;
     private PlayerWallet wallet;
     private PlayerStats playerStats;
+    private PlayerController playerController;
 
     // Кэшированные объекты для оптимизации
     private Ray ray;
@@ -31,6 +32,8 @@ public class PlayerInteraction
     }
 
     public void SetWallet(PlayerWallet w) => wallet = w;
+
+    public void SetPlayerController(PlayerController controller) => playerController = controller;
 
     public void ResetHoldState()
     {
@@ -82,8 +85,25 @@ public class PlayerInteraction
                     // Обычное подбирание предметов
                     if (inventory.TryAdd(hit.collider.gameObject))
                     {
+                        // Применяем эффекты предмета если это BuffItem или Weapon
+                        if (hit.collider.gameObject.TryGetComponent<BuffItem>(out var buffItem))
+                        {
+                            buffItem.ApplyBuff(playerStats);
+                            playerController?.UpdateMovementStats();
+                            Debug.Log($"✅ Подобран и применен бонус: {hit.collider.gameObject.name}");
+                        }
+                        else if (hit.collider.gameObject.TryGetComponent<Weapon>(out var weapon))
+                        {
+                            weapon.ApplyWeaponStats(playerStats);
+                            playerController?.UpdateMovementStats();
+                            Debug.Log($"✅ Подобрано и экипировано оружие: {hit.collider.gameObject.name}");
+                        }
+                        else
+                        {
+                            Debug.Log("✅ Подобрал " + hit.collider.gameObject.name);
+                        }
+
                         hit.collider.gameObject.SetActive(false);
-                        Debug.Log("✅ Подобрал " + hit.collider.gameObject.name);
                     }
                     else
                     {
@@ -337,6 +357,10 @@ public class PlayerInteraction
         if (itemObject.TryGetComponent<BuffItem>(out var buffItem))
         {
             buffItem.ApplyBuff(playerStats);
+
+            // Обновляем статы движения после применения бонуса
+            playerController?.UpdateMovementStats();
+
             Debug.Log($"✅ Куплен и применен бонус: {itemName} за {purchasePrice}");
         }
         else if (itemObject.TryGetComponent<Weapon>(out var weapon))
@@ -346,6 +370,10 @@ public class PlayerInteraction
             {
                 itemObject.SetActive(false);
                 weapon.ApplyWeaponStats(playerStats);
+
+                // Обновляем статы движения после применения оружия
+                playerController?.UpdateMovementStats();
+
                 Debug.Log($"✅ Куплено и экипировано оружие: {itemName} за {purchasePrice}");
             }
             else

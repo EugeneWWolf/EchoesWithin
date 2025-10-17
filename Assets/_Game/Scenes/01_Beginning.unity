@@ -2230,6 +2230,8 @@ GameObject:
   - component: {fileID: 908368363}
   - component: {fileID: 908368362}
   - component: {fileID: 908368364}
+  - component: {fileID: 908368365}
+  - component: {fileID: 908368366}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -2295,6 +2297,46 @@ MonoBehaviour:
   m_DefaultActionMap: Menu
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
+--- !u!114 &908368365
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 908368360}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 072de14803ef80b41834542209a718be, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemFactory
+  sellableItemPrefabs:
+  - {fileID: 8471343069670946097, guid: 39c6522b390a3ff40818de2306b0b516, type: 3}
+  - {fileID: 2869162013623264003, guid: 0102a052581cc4b49b1f89f5275f0e8c, type: 3}
+  buffItemPrefabs:
+  - {fileID: 101410, guid: 42e10282f8fbf5c4e8b256671cf20015, type: 3}
+  weaponPrefabs:
+  - {fileID: 6097537471242218876, guid: 91aa20f73dab38e45abb656231f6be72, type: 3}
+  useObjectPooling: 1
+  poolSize: 50
+--- !u!114 &908368366
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 908368360}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8014d0171595a334181f990defff82f9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DungeonItemManager
+  initializeOnStart: 1
+  enableDebugUI: 0
+  itemFactory: {fileID: 908368365}
+  dungeonSpawners:
+  - {fileID: 1852820155}
+  globalMaxItems: 50
+  cleanupInterval: 60
 --- !u!1 &958663664
 GameObject:
   m_ObjectHideFlags: 0
@@ -4223,6 +4265,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1852820154}
+  - component: {fileID: 1852820155}
   m_Layer: 0
   m_Name: SpawnPoint
   m_TagString: Untagged
@@ -4239,12 +4282,54 @@ Transform:
   m_GameObject: {fileID: 1852820153}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.97, y: 11.77, z: -1.14}
+  m_LocalPosition: {x: 0.39, y: 11.77, z: -1.14}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2007656994}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1852820155
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1852820153}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe2d0690723e07a4e920e589f7cf3caa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DungeonItemSpawner
+  spawnOnStart: 1
+  spawnInterval: 5
+  maxItemsInDungeon: 20
+  spawnRadius: 8.07
+  dungeonCenter: {fileID: 1852820154}
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 1
+  groundCheckDistance: 10
+  spawnConfigs:
+  - itemType: 0
+    spawnChance: 0.7
+    minCount: 1
+    maxCount: 5
+    minValue: 20
+    maxValue: 150
+  - itemType: 1
+    spawnChance: 0.2
+    minCount: 1
+    maxCount: 5
+    minValue: 5
+    maxValue: 20
+  - itemType: 2
+    spawnChance: 0.1
+    minCount: 1
+    maxCount: 2
+    minValue: 5
+    maxValue: 50
+  showDebugGizmos: 1
+  gizmoColor: {r: 0, g: 1, b: 0, a: 1}
 --- !u!1001 &1904134364
 PrefabInstance:
   m_ObjectHideFlags: 0
