@@ -12,9 +12,6 @@ public class Dummy : Enemy
     [SerializeField] private bool showDamageNumbers = true;
     [SerializeField] private GameObject damageTextPrefab;
 
-    [Header("Health Bar")]
-    [SerializeField] private bool showHealthBar = false; // Отключаем health bar для манекена
-
     [Header("Dummy Stats")]
     [SerializeField] private float baseMaxHealth = 100f;
     [SerializeField] private bool isInvincible = false;
@@ -37,9 +34,6 @@ public class Dummy : Enemy
 
         // Устанавливаем базовое здоровье
         maxHealth = baseMaxHealth;
-
-        // Отключаем health bar для манекена
-        showHealthBar = false;
 
         base.Start();
 

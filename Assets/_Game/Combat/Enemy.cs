@@ -26,7 +26,6 @@ public abstract class Enemy : MonoBehaviour
     protected virtual void Start()
     {
         currentHealth = maxHealth;
-        SetupHealthBar();
         FindPlayer();
     }
 
@@ -34,27 +33,16 @@ public abstract class Enemy : MonoBehaviour
     {
         if (isDead) return;
 
-        UpdateHealthBar();
         UpdateEnemy();
     }
 
     /// <summary>
     /// Настройка health bar (упрощенная версия)
     /// </summary>
-    protected virtual void SetupHealthBar()
-    {
-        // Health bar отключен для производительности
-        // Можно включить в настройках если нужно
-    }
 
     /// <summary>
     /// Обновление health bar (упрощенная версия)
     /// </summary>
-    protected virtual void UpdateHealthBar()
-    {
-        // Health bar отключен для производительности
-        // Можно включить в настройках если нужно
-    }
 
     /// <summary>
     /// Поиск игрока
