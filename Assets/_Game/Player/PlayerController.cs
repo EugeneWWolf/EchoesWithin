@@ -12,6 +12,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Transform playerCameraT;
     [SerializeField] private InventoryUI inventoryUI;
     [SerializeField] private PlayerWallet wallet;
+    [SerializeField] private MoneyUI moneyUI;
 
     [Header("Player Stats")]
     [SerializeField] private PlayerStats playerStats;
@@ -78,6 +79,12 @@ public class PlayerController : MonoBehaviour
         // привязка UI к инвентарю
         if (inventoryUI != null)
             inventoryUI.BindInventory(inventory);
+
+        // привязка UI денег к кошельку
+        if (moneyUI != null && wallet != null)
+            moneyUI.BindWallet(wallet);
+        else if (moneyUI != null)
+            Debug.LogWarning("⚠ MoneyUI назначен, но PlayerWallet не найден!");
 
         // курсор
         Cursor.lockState = CursorLockMode.Locked;
