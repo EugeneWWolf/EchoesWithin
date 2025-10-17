@@ -142,12 +142,26 @@ public class DungeonItemSpawner : MonoBehaviour
 
         foreach (var config in spawnConfigs)
         {
+            // Проверяем лимит перед каждым типом предметов
+            if (spawnedItems.Count >= maxItemsInDungeon)
+            {
+                Debug.Log($"🏰 DungeonItemSpawner: Достигнут лимит предметов ({maxItemsInDungeon}), пропускаем {config.itemType}");
+                break;
+            }
+
             if (Random.value <= config.spawnChance)
             {
                 int count = Random.Range(config.minCount, config.maxCount + 1);
 
                 for (int i = 0; i < count; i++)
                 {
+                    // Проверяем лимит перед каждым предметом
+                    if (spawnedItems.Count >= maxItemsInDungeon)
+                    {
+                        Debug.Log($"🏰 DungeonItemSpawner: Достигнут лимит предметов ({maxItemsInDungeon}) во время спавна {config.itemType}");
+                        break;
+                    }
+
                     Vector3 spawnPosition = GetRandomSpawnPosition();
                     if (spawnPosition != Vector3.zero)
                     {
@@ -157,7 +171,7 @@ public class DungeonItemSpawner : MonoBehaviour
             }
         }
 
-        Debug.Log($"🏰 DungeonItemSpawner: Спавн завершен. Общее количество предметов: {spawnedItems.Count}");
+        Debug.Log($"🏰 DungeonItemSpawner: Спавн завершен. Общее количество предметов: {spawnedItems.Count}/{maxItemsInDungeon}");
     }
 
     private Vector3 GetRandomSpawnPosition()
@@ -181,16 +195,26 @@ public class DungeonItemSpawner : MonoBehaviour
 
     private void SpawnItem(ItemSpawnConfig config, Vector3 position)
     {
+        // Дополнительная проверка лимита перед созданием предмета
+        if (spawnedItems.Count >= maxItemsInDungeon)
+        {
+            Debug.LogWarning($"🏰 DungeonItemSpawner: Попытка создать предмет при достигнутом лимите ({maxItemsInDungeon})");
+            return;
+        }
+
+        // Генерируем случайное значение для стата
+        float randomStatValue = Random.Range(config.minValue, config.maxValue);
+
         ItemSpawnData spawnData = new ItemSpawnData
         {
             itemType = config.itemType,
             position = position,
             rotation = Quaternion.Euler(0, Random.Range(0, 360), 0),
             itemName = $"Dungeon {config.itemType}",
-            price = Random.Range(5, 50),
+            price = Mathf.RoundToInt(randomStatValue), // Цена = значение стата
             description = $"Предмет из данжа типа {config.itemType}",
             statType = StatType.Health,
-            statValue = Random.Range(config.minValue, config.maxValue)
+            statValue = randomStatValue
         };
 
         GameObject item = itemFactory.CreateItem(config.itemType, spawnData);
@@ -204,7 +228,7 @@ public class DungeonItemSpawner : MonoBehaviour
                 itemManager.RegisterDungeonItem(item);
             }
 
-            Debug.Log($"🏰 DungeonItemSpawner: Создан предмет {item.name} в позиции {position}");
+            Debug.Log($"🏰 DungeonItemSpawner: Создан предмет {item.name} в позиции {position} (цена: {spawnData.price}, стат: {spawnData.statValue:F1}) (всего: {spawnedItems.Count}/{maxItemsInDungeon})");
         }
     }
 
@@ -237,6 +261,31 @@ public class DungeonItemSpawner : MonoBehaviour
         SpawnRandomItems();
     }
 
+    /// <summary>
+    /// Получает текущее количество предметов в данже
+    /// </summary>
+    public int GetCurrentItemCount()
+    {
+        return spawnedItems.Count;
+    }
+
+    /// <summary>
+    /// Получает максимальное количество предметов в данже
+    /// </summary>
+    public int GetMaxItemCount()
+    {
+        return maxItemsInDungeon;
+    }
+
+    /// <summary>
+    /// Проверяет, можно ли создать еще предметы
+    /// </summary>
+    public bool CanSpawnMoreItems()
+    {
+        return spawnedItems.Count < maxItemsInDungeon;
+    }
+
+
     private void OnDrawGizmos()
     {
         if (!showDebugGizmos) return;
@@ -262,11 +311,20 @@ public class DungeonItemSpawner : MonoBehaviour
     {
         if (!showDebugGizmos) return;
 
-        GUILayout.BeginArea(new Rect(10, 500, 300, 150));
+        GUILayout.BeginArea(new Rect(10, 500, 300, 200));
         GUILayout.Label("=== DUNGEON ITEM SPAWNER ===");
         GUILayout.Label($"Items in Dungeon: {spawnedItems.Count}/{maxItemsInDungeon}");
+        GUILayout.Label($"Can Spawn More: {CanSpawnMoreItems()}");
         GUILayout.Label($"Spawn Interval: {spawnInterval}s");
         GUILayout.Label($"Spawn Radius: {spawnRadius}");
+
+        // Показываем предупреждение если лимит превышен
+        if (spawnedItems.Count > maxItemsInDungeon)
+        {
+            GUI.color = Color.red;
+            GUILayout.Label($"⚠ ПРЕВЫШЕН ЛИМИТ! ({spawnedItems.Count} > {maxItemsInDungeon})");
+            GUI.color = Color.white;
+        }
 
         if (GUILayout.Button("Force Spawn Items"))
         {
@@ -276,6 +334,22 @@ public class DungeonItemSpawner : MonoBehaviour
         if (GUILayout.Button("Clear All Items"))
         {
             ClearAllItems();
+        }
+
+        if (GUILayout.Button("Debug Item Count"))
+        {
+            Debug.Log($"🏰 DungeonItemSpawner: Текущее количество предметов: {spawnedItems.Count}/{maxItemsInDungeon}");
+        }
+
+        if (GUILayout.Button("Debug Item Values"))
+        {
+            Debug.Log("🏰 DungeonItemSpawner: Тестирование значений предметов:");
+            foreach (var config in spawnConfigs)
+            {
+                float testValue = Random.Range(config.minValue, config.maxValue);
+                int price = Mathf.RoundToInt(testValue);
+                Debug.Log($"  {config.itemType}: statValue={testValue:F1} (min={config.minValue}, max={config.maxValue}) -> price={price}");
+            }
         }
 
         GUILayout.EndArea();

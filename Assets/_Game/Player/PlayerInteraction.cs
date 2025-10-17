@@ -1,5 +1,11 @@
 ﻿using UnityEngine;
 
+// Компонент для триггера взаимодействия с предметами
+public class ItemInteractionTrigger : MonoBehaviour
+{
+    public GameObject item;
+}
+
 public class PlayerInteraction
 {
     private readonly InventorySystem inventory;
@@ -57,14 +63,41 @@ public class PlayerInteraction
 
         if (Physics.Raycast(ray, out hit, interactDistance, interactLayer))
         {
-            // Проверяем, не тот же ли объект (избегаем повторных взаимодействий)
-            if (lastHitObject == hit.collider.gameObject)
-                return;
+            Debug.Log($"🔍 Обнаружен объект: {hit.collider.gameObject.name} (активен: {hit.collider.gameObject.activeInHierarchy}, слой: {hit.collider.gameObject.layer})");
 
-            lastHitObject = hit.collider.gameObject;
+            // Проверяем, что объект находится на правильном слое для взаимодействия
+            int targetLayer = LayerMask.NameToLayer("Interactable");
+            Debug.Log($"🔍 Проверка слоя: объект {hit.collider.gameObject.name} на слое {hit.collider.gameObject.layer}, нужен слой {targetLayer}");
+
+            if (targetLayer != -1 && hit.collider.gameObject.layer != targetLayer)
+            {
+                Debug.Log($"⚠ Объект {hit.collider.gameObject.name} не на слое Interactable (слой: {hit.collider.gameObject.layer}, нужен: {targetLayer})");
+                return;
+            }
+
+            // Получаем предмет из триггера взаимодействия
+            GameObject targetItem = hit.collider.gameObject;
+            ItemInteractionTrigger trigger = hit.collider.GetComponent<ItemInteractionTrigger>();
+            Debug.Log($"🔍 Проверка триггера: {hit.collider.gameObject.name}, есть ItemInteractionTrigger: {trigger != null}");
+
+            if (trigger != null && trigger.item != null)
+            {
+                targetItem = trigger.item;
+                Debug.Log($"🔍 Найден связанный предмет: {targetItem.name}");
+            }
+            else
+            {
+                Debug.Log($"🔍 Используем прямой объект: {targetItem.name}");
+            }
+
+            // Проверяем, не тот же ли объект (избегаем повторных взаимодействий)
+            //if (lastHitObject == targetItem)
+                //return;
+
+            lastHitObject = targetItem;
 
             // Проверяем, является ли объект телепорт-дверью
-            TeleportDoor teleportDoor = hit.collider.GetComponent<TeleportDoor>();
+            TeleportDoor teleportDoor = targetItem.GetComponent<TeleportDoor>();
             if (teleportDoor != null)
             {
                 Debug.Log("🚪 Взаимодействие с дверью телепортации. Используйте зажатие кнопки для телепортации.");
@@ -74,40 +107,68 @@ public class PlayerInteraction
             // Проверяем, находится ли игрок в зоне покупки
             if (IsPlayerInShopZone())
             {
-                TryPurchaseItem(hit.collider.gameObject);
+                TryPurchaseItem(targetItem);
             }
             else
             {
                 // Проверяем, что объект можно подобрать (не телепорт-дверь и не зона телепортации)
-                if (hit.collider.GetComponent<TeleportDoor>() == null &&
-                    hit.collider.GetComponent<TeleportZone>() == null)
+                if (targetItem.GetComponent<TeleportDoor>() == null &&
+                    targetItem.GetComponent<TeleportZone>() == null &&
+                    targetItem.activeInHierarchy) // Предмет должен быть активен
                 {
-                    // Обычное подбирание предметов
-                    if (inventory.TryAdd(hit.collider.gameObject))
+                    // Проверяем, что у объекта есть компонент Item
+                    Debug.Log($"🔍 Проверка компонента Item у {targetItem.name}: {targetItem.TryGetComponent<Item>(out var itemComponent)}");
+                    if (!itemComponent)
                     {
-                        // Применяем эффекты предмета если это BuffItem или Weapon
-                        if (hit.collider.gameObject.TryGetComponent<BuffItem>(out var buffItem))
+                        Debug.Log($"⚠ Объект {targetItem.name} не имеет компонента Item, пропускаем");
+                        return;
+                    }
+
+                    // Проверяем тип предмета перед добавлением в инвентарь
+                    if (targetItem.TryGetComponent<BuffItem>(out var buffItem))
+                    {
+                        // BuffItem применяется и уничтожается, не добавляется в инвентарь
+                        buffItem.ApplyBuff(playerStats);
+                        // Обновляем только урон после применения бонуса
+                        if (playerController != null && playerController.combat != null)
                         {
-                            buffItem.ApplyBuff(playerStats);
-                            playerController?.UpdateMovementStats();
-                            Debug.Log($"✅ Подобран и применен бонус: {hit.collider.gameObject.name}");
-                        }
-                        else if (hit.collider.gameObject.TryGetComponent<Weapon>(out var weapon))
-                        {
-                            weapon.ApplyWeaponStats(playerStats);
-                            playerController?.UpdateMovementStats();
-                            Debug.Log($"✅ Подобрано и экипировано оружие: {hit.collider.gameObject.name}");
-                        }
-                        else
-                        {
-                            Debug.Log("✅ Подобрал " + hit.collider.gameObject.name);
+                            playerController.combat.OnBuffApplied();
                         }
 
-                        hit.collider.gameObject.SetActive(false);
+                        // Уничтожаем BuffItem после применения (он одноразовый)
+                        targetItem.SetActive(false);
+                        Debug.Log($"✅ Подобран и применен бонус: {targetItem.name} (предмет уничтожен)");
                     }
                     else
                     {
-                        Debug.Log("⚠ Слот занят, не могу подобрать");
+                        Debug.Log($"🔍 Пытаемся добавить {targetItem.name} в инвентарь...");
+                        bool added = inventory.TryAdd(targetItem);
+                        Debug.Log($"🔍 Результат добавления в инвентарь: {added}");
+
+                        if (added)
+                        {
+                            // Остальные предметы добавляем в инвентарь
+                            if (targetItem.TryGetComponent<Weapon>(out var weapon))
+                            {
+                                weapon.ApplyWeaponStats(playerStats);
+                                // Обновляем только урон после применения оружия
+                                if (playerController != null && playerController.combat != null)
+                                {
+                                    playerController.combat.OnBuffApplied();
+                                }
+                                Debug.Log($"✅ Подобрано и экипировано оружие: {targetItem.name}");
+                            }
+                            else
+                            {
+                                Debug.Log("✅ Подобрал " + targetItem.name);
+                            }
+
+                            targetItem.SetActive(false);
+                        }
+                        else
+                        {
+                            Debug.Log($"⚠ Не могу подобрать {targetItem.name}: слот {inventory.ActiveSlot} занят предметом {inventory.GetItem(inventory.ActiveSlot)?.name ?? "null"}");
+                        }
                     }
                 }
                 else
@@ -222,14 +283,103 @@ public class PlayerInteraction
         GameObject dropped = inventory.RemoveActive();
         if (dropped != null)
         {
-            dropped.SetActive(true);
-            dropped.transform.position = cameraT.position + cameraT.forward * 1.5f;
-            if (dropped.TryGetComponent<Rigidbody>(out var rb))
+            // Если это оружие, убираем бонус урона
+            if (dropped.TryGetComponent<Weapon>(out var weapon))
             {
-                rb.isKinematic = false;
-                rb.linearVelocity = cameraT.forward * 3f;
+                weapon.RemoveWeaponStats(playerStats);
+
+                // Обновляем только урон после снятия оружия
+                if (playerController != null && playerController.combat != null)
+                {
+                    playerController.combat.OnBuffApplied();
+                }
+
+                Debug.Log($"⚔ Снято оружие: {dropped.name}");
             }
-            Debug.Log("✅ Выбросил предмет " + dropped.name);
+
+            // Активируем предмет
+            dropped.SetActive(true);
+
+            // Устанавливаем позицию перед игроком
+            Vector3 dropPosition = cameraT.position + cameraT.forward * 1.5f;
+            dropPosition.y = Mathf.Max(dropPosition.y, cameraT.position.y - 0.5f); // Не ниже уровня игрока
+            dropped.transform.position = dropPosition;
+
+            // Настраиваем Rigidbody для физики
+            Rigidbody rb = dropped.GetComponent<Rigidbody>();
+            if (rb == null)
+            {
+                rb = dropped.AddComponent<Rigidbody>();
+            }
+
+            // Включаем физику, но ограничиваем скорость
+            rb.isKinematic = false;
+            rb.useGravity = true;
+            rb.linearDamping = 2f; // Сопротивление воздуха
+            rb.angularDamping = 5f; // Сопротивление вращению
+
+            // Добавляем небольшую силу вперед
+            rb.AddForce(cameraT.forward * 2f, ForceMode.Impulse);
+
+            // Убеждаемся, что у предмета есть коллайдер
+            Collider collider = dropped.GetComponent<Collider>();
+            if (collider == null)
+            {
+                collider = dropped.AddComponent<BoxCollider>();
+            }
+
+            // Устанавливаем правильный слой для взаимодействия
+            int interactableLayer = LayerMask.NameToLayer("Interactable");
+            if (interactableLayer != -1)
+            {
+                dropped.layer = interactableLayer;
+            }
+
+            // Настраиваем основной коллайдер для физики
+            collider.isTrigger = false; // НЕ триггер для физики
+            collider.enabled = true;
+
+            // Проверяем, есть ли уже триггер взаимодействия
+            ItemInteractionTrigger existingTrigger = dropped.GetComponentInChildren<ItemInteractionTrigger>();
+            if (existingTrigger == null || existingTrigger.gameObject == dropped)
+            {
+                // Удаляем старые триггеры взаимодействия
+                ItemInteractionTrigger[] oldTriggers = dropped.GetComponentsInChildren<ItemInteractionTrigger>();
+                foreach (var oldTrigger in oldTriggers)
+                {
+                    if (oldTrigger.gameObject != dropped)
+                    {
+                        Object.Destroy(oldTrigger.gameObject);
+                    }
+                }
+
+                // Добавляем дополнительный триггер-коллайдер для взаимодействия
+                GameObject interactionTrigger = new GameObject("InteractionTrigger");
+                interactionTrigger.transform.SetParent(dropped.transform);
+                interactionTrigger.transform.localPosition = Vector3.zero;
+                interactionTrigger.layer = interactableLayer;
+
+                BoxCollider triggerCollider = interactionTrigger.AddComponent<BoxCollider>();
+                triggerCollider.isTrigger = true;
+                triggerCollider.size = collider.bounds.size * 1.2f; // Немного больше основного коллайдера
+
+                // Добавляем компонент для идентификации
+                interactionTrigger.AddComponent<ItemInteractionTrigger>().item = dropped;
+
+                Debug.Log($"✅ Создан новый триггер взаимодействия для {dropped.name}");
+            }
+            else
+            {
+                Debug.Log($"ℹ Триггер взаимодействия уже существует для {dropped.name}");
+            }
+
+            // Убеждаемся, что у предмета есть компонент Item
+            if (!dropped.TryGetComponent<Item>(out var itemComponent))
+            {
+                Debug.LogWarning($"⚠ У выброшенного предмета {dropped.name} нет компонента Item!");
+            }
+
+            Debug.Log($"✅ Выбросил предмет {dropped.name} в позиции {dropPosition} (слой: {dropped.layer}, коллайдер: {collider.enabled})");
         }
     }
 
@@ -358,10 +508,15 @@ public class PlayerInteraction
         {
             buffItem.ApplyBuff(playerStats);
 
-            // Обновляем статы движения после применения бонуса
-            playerController?.UpdateMovementStats();
+            // Обновляем только урон после применения бонуса
+            if (playerController != null && playerController.combat != null)
+            {
+                playerController.combat.OnBuffApplied();
+            }
 
-            Debug.Log($"✅ Куплен и применен бонус: {itemName} за {purchasePrice}");
+            // Уничтожаем BuffItem после применения (он одноразовый)
+            itemObject.SetActive(false);
+            Debug.Log($"✅ Куплен и применен бонус: {itemName} за {purchasePrice} (предмет уничтожен)");
         }
         else if (itemObject.TryGetComponent<Weapon>(out var weapon))
         {
@@ -371,8 +526,11 @@ public class PlayerInteraction
                 itemObject.SetActive(false);
                 weapon.ApplyWeaponStats(playerStats);
 
-                // Обновляем статы движения после применения оружия
-                playerController?.UpdateMovementStats();
+                // Обновляем только урон после применения оружия
+                if (playerController != null && playerController.combat != null)
+                {
+                    playerController.combat.OnBuffApplied();
+                }
 
                 Debug.Log($"✅ Куплено и экипировано оружие: {itemName} за {purchasePrice}");
             }

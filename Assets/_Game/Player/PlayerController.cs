@@ -16,6 +16,9 @@ public class PlayerController : MonoBehaviour
     [Header("Player Stats")]
     [SerializeField] private PlayerStats playerStats;
 
+    [Header("Combat")]
+    [SerializeField] public PlayerCombat combat;
+
     private CharacterController controller;
     private PlayerMovement movement;
     private PlayerCameraController cameraController;
@@ -38,6 +41,17 @@ public class PlayerController : MonoBehaviour
             Debug.LogWarning("⚠ PlayerStats не назначен — создан дефолтный экземпляр!");
         }
         playerStats.RecalculateStats();
+
+        // Инициализируем боевую систему
+        if (combat == null)
+        {
+            combat = GetComponent<PlayerCombat>();
+            if (combat == null)
+            {
+                combat = gameObject.AddComponent<PlayerCombat>();
+                Debug.Log("✅ PlayerCombat автоматически создан и добавлен");
+            }
+        }
 
         // создаём подсистемы
         movement = new PlayerMovement(controller, settings, playerStats);
@@ -93,6 +107,11 @@ public class PlayerController : MonoBehaviour
         if (value.isPressed)
             ResetStatsToDefaults();
     }
+    public void OnAttack(InputValue value)
+    {
+        if (value.isPressed && combat != null)
+            combat.TryAttack();
+    }
     public void OnDrop() => interaction.TryDrop();
     public void OnSell() => interaction.TrySell();
     public void OnInventory1() => SetActiveInventorySlot(0);
@@ -107,6 +126,7 @@ public class PlayerController : MonoBehaviour
         if (previousItem != null && previousItem.TryGetComponent<Weapon>(out var previousWeapon))
         {
             previousWeapon.RemoveWeaponStats(playerStats);
+            Debug.Log($"⚔ Снято оружие со слота {inventory.ActiveSlot}: {previousItem.name}");
         }
 
         inventory.SetActiveSlot(slotIndex);
@@ -116,6 +136,17 @@ public class PlayerController : MonoBehaviour
         if (currentItem != null && currentItem.TryGetComponent<Weapon>(out var currentWeapon))
         {
             currentWeapon.ApplyWeaponStats(playerStats);
+            Debug.Log($"⚔ Экипировано оружие в слот {slotIndex}: {currentItem.name}");
+        }
+        else
+        {
+            Debug.Log($"ℹ Слот {slotIndex} пуст или не содержит оружие");
+        }
+
+        // Обновляем только урон в боевой системе
+        if (combat != null)
+        {
+            combat.RefreshDamage();
         }
     }
 
@@ -126,6 +157,21 @@ public class PlayerController : MonoBehaviour
     public void UpdateMovementStats()
     {
         movement.ForceUpdateStats();
+    }
+
+    // Диагностика урона
+    [ContextMenu("Debug Damage")]
+    public void DebugDamage()
+    {
+        if (playerStats != null)
+        {
+            Debug.Log($"📊 Текущий урон: {playerStats.currentDamage} (базовый: {playerStats.baseDamage}, модификатор: {playerStats.damageModifier})");
+        }
+
+        if (combat != null)
+        {
+            Debug.Log($"⚔ Урон в боевой системе: {combat.GetCombatInfo()}");
+        }
     }
 
     // Методы для сброса статов
