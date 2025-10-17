@@ -4569,7 +4569,7 @@ MonoBehaviour:
     maxCount: 2
     minValue: 50
     maxValue: 51
-  showDebugGizmos: 1
+  showDebugGizmos: 0
   gizmoColor: {r: 0, g: 1, b: 0, a: 1}
 --- !u!1001 &1904134364
 PrefabInstance:

@@ -20,10 +20,10 @@ public class DungeonItemSpawner : MonoBehaviour
     [SerializeField] private float groundCheckDistance = 10f; // Расстояние для поиска земли
 
     [Header("Item Types")]
-    [SerializeField] private ItemSpawnConfig[] spawnConfigs; // Конфигурация типов предметов
+    [SerializeField] private ItemSpawnConfig[] spawnConfigs; // Конфигурация типов предметов!
 
     [Header("Debug")]
-    [SerializeField] private bool showDebugGizmos = true;
+    [SerializeField] private bool showDebugGizmos = false;
     [SerializeField] private Color gizmoColor = Color.green;
 
     private ItemFactory itemFactory;
