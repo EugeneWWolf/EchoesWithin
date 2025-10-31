@@ -16,8 +16,12 @@ public class ShopZone : MonoBehaviour
 
     private void Start()
     {
-        // Размещаем предметы в лавке при старте
-        PlaceShopItems();
+        // Размещаем предметы в лавке при старте (если они уже назначены)
+        // Если используется SimpleShopItemCreator, он вызовет PlaceShopItems() сам
+        if (shopItems != null && shopItems.Length > 0)
+        {
+            PlaceShopItems();
+        }
     }
 
     public void PlaceShopItems()
@@ -84,6 +88,20 @@ public class ShopZone : MonoBehaviour
 
                 // Проверяем компоненты предмета
                 CheckItemComponents(shopItems[i]);
+
+                // Добавляем отображение цены если его нет и устанавливаем ShopZone
+                ItemPriceDisplay priceDisplay = shopItems[i].GetComponent<ItemPriceDisplay>();
+                if (priceDisplay == null)
+                {
+                    priceDisplay = shopItems[i].AddComponent<ItemPriceDisplay>();
+                    Debug.Log($"💰 ShopZone: Добавлен компонент отображения цены для {shopItems[i].name}");
+                }
+
+                // Устанавливаем ShopZone для компонента отображения цены
+                if (priceDisplay != null)
+                {
+                    priceDisplay.SetShopZone(this);
+                }
             }
             else
             {
