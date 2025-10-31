@@ -20,7 +20,15 @@ public class PlayerController : MonoBehaviour
     [Header("Combat")]
     [SerializeField] public PlayerCombat combat;
 
+    [Header("Respawn Settings")]
+    [SerializeField] private Vector3 respawnPosition = Vector3.zero;
+    [SerializeField] private float respawnDelay = 2f;
+    [SerializeField] private bool useInitialPositionAsRespawn = true;
+
     private CharacterController controller;
+    private float currentHealth;
+    private bool isDead = false;
+    private Vector3 initialPosition;
     private PlayerMovement movement;
     private PlayerCameraController cameraController;
     private InventorySystem inventory;
@@ -42,6 +50,21 @@ public class PlayerController : MonoBehaviour
             Debug.LogWarning("⚠ PlayerStats не назначен — создан дефолтный экземпляр!");
         }
         playerStats.RecalculateStats();
+
+        // Инициализируем здоровье
+        currentHealth = playerStats.currentHealth;
+        initialPosition = transform.position;
+
+        // Устанавливаем позицию респавна
+        if (useInitialPositionAsRespawn && respawnPosition == Vector3.zero)
+        {
+            respawnPosition = initialPosition;
+        }
+
+        // Подписываемся на обновление статов для синхронизации здоровья
+        // (здоровье обновляется через текущий метод, так что просто инициализируем)
+
+        Debug.Log($"❤️ Игрок инициализирован. Здоровье: {currentHealth}/{playerStats.currentHealth}");
 
         // Инициализируем боевую систему
         if (combat == null)
@@ -93,8 +116,17 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
+        // Не обновляем движение если игрок мертв
+        if (isDead) return;
+
         movement.Tick();
         cameraController.Tick();
+
+        // Синхронизируем максимальное здоровье со статами (но не уменьшаем текущее здоровье)
+        if (playerStats != null && currentHealth > playerStats.currentHealth)
+        {
+            currentHealth = playerStats.currentHealth;
+        }
     }
 
     // === INPUT SYSTEM CALLBACKS ===
@@ -234,4 +266,108 @@ public class PlayerController : MonoBehaviour
 
         Debug.Log("✅ PlayerController: Модификаторы статов сброшены");
     }
+
+    /// <summary>
+    /// Получение урона
+    /// </summary>
+    public void TakeDamage(float damageAmount)
+    {
+        if (isDead) return;
+
+        currentHealth -= damageAmount;
+        currentHealth = Mathf.Max(0, currentHealth);
+
+        Debug.Log($"💥 Игрок получил {damageAmount} урона. Здоровье: {currentHealth}/{playerStats.currentHealth}");
+
+        if (currentHealth <= 0)
+        {
+            Die();
+        }
+    }
+
+    /// <summary>
+    /// Лечение
+    /// </summary>
+    public void Heal(float healAmount)
+    {
+        if (isDead) return;
+
+        currentHealth += healAmount;
+        currentHealth = Mathf.Min(playerStats.currentHealth, currentHealth);
+
+        Debug.Log($"💚 Игрок восстановил {healAmount} здоровья. Здоровье: {currentHealth}/{playerStats.currentHealth}");
+    }
+
+    /// <summary>
+    /// Смерть игрока
+    /// </summary>
+    private void Die()
+    {
+        if (isDead) return;
+
+        isDead = true;
+        currentHealth = 0;
+
+        Debug.Log("💀 Игрок умер! Game Over!");
+
+        // Запускаем респавн через некоторое время
+        StartCoroutine(RespawnCoroutine());
+    }
+
+    /// <summary>
+    /// Корутина респавна
+    /// </summary>
+    private IEnumerator RespawnCoroutine()
+    {
+        yield return new WaitForSeconds(respawnDelay);
+
+        Respawn();
+    }
+
+    /// <summary>
+    /// Респавн игрока
+    /// </summary>
+    private void Respawn()
+    {
+        isDead = false;
+
+        // Восстанавливаем здоровье
+        currentHealth = playerStats.currentHealth;
+
+        // Телепортируем игрока на позицию респавна
+        controller.enabled = false; // Отключаем контроллер для телепортации
+        transform.position = respawnPosition;
+        controller.enabled = true; // Включаем обратно
+
+        Debug.Log($"🔄 Игрок респавнился на позиции {respawnPosition}. Здоровье восстановлено!");
+    }
+
+    /// <summary>
+    /// Установка позиции респавна
+    /// </summary>
+    public void SetRespawnPosition(Vector3 position)
+    {
+        respawnPosition = position;
+        Debug.Log($"📍 Позиция респавна установлена: {position}");
+    }
+
+    /// <summary>
+    /// Получение текущего здоровья
+    /// </summary>
+    public float GetCurrentHealth() => currentHealth;
+
+    /// <summary>
+    /// Получение максимального здоровья
+    /// </summary>
+    public float GetMaxHealth() => playerStats != null ? playerStats.currentHealth : 100f;
+
+    /// <summary>
+    /// Проверка, жив ли игрок
+    /// </summary>
+    public bool IsDead() => isDead;
+
+    /// <summary>
+    /// Получение процента здоровья
+    /// </summary>
+    public float GetHealthPercentage() => GetMaxHealth() > 0 ? currentHealth / GetMaxHealth() : 0f;
 }

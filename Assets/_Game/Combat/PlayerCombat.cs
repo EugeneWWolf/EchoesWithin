@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using System.Collections.Generic;
 
 /// <summary>
 /// Система боя игрока
@@ -72,8 +73,27 @@ public class PlayerCombat : MonoBehaviour
         Vector3 attackCenter = attackPoint.position + transform.forward * (attackRange * 0.5f);
         Vector3 attackSize = new Vector3(attackRange, attackHeight, attackRange);
 
-        // Ищем врагов в области атаки
+        // Ищем врагов в области атаки (сначала с layer mask)
         Collider[] enemies = Physics.OverlapBox(attackCenter, attackSize * 0.5f, transform.rotation, enemyLayer);
+
+        // Если не найдено врагов с layer mask, ищем всех (fallback)
+        if (enemies.Length == 0)
+        {
+            Collider[] allColliders = Physics.OverlapBox(attackCenter, attackSize * 0.5f, transform.rotation);
+            List<Collider> enemyList = new List<Collider>();
+
+            foreach (Collider col in allColliders)
+            {
+                // Проверяем, что это враг, но не игрок
+                Enemy enemyComponent = col.GetComponent<Enemy>();
+                if (enemyComponent != null && col.transform != transform && !col.transform.IsChildOf(transform))
+                {
+                    enemyList.Add(col);
+                }
+            }
+
+            enemies = enemyList.ToArray();
+        }
 
         bool hitSomething = false;
 

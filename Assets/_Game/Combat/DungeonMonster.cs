@@ -651,8 +651,28 @@ public class DungeonMonster : Enemy
         // Проверяем, можем ли атаковать
         if (distanceToPlayer <= attackRange && Time.time - lastAttackTime >= attackCooldown)
         {
-            // Здесь можно добавить атаку, если нужно
+            AttackPlayer();
             lastAttackTime = Time.time;
+        }
+    }
+
+    /// <summary>
+    /// Атака игрока
+    /// </summary>
+    private void AttackPlayer()
+    {
+        if (playerTransform == null) return;
+
+        // Находим PlayerController для нанесения урона
+        PlayerController player = playerTransform.GetComponent<PlayerController>();
+        if (player != null)
+        {
+            player.TakeDamage(damage);
+
+            if (enableDebugLogs)
+            {
+                Debug.Log($"👹 DungeonMonster атаковал игрока на {damage} урона!");
+            }
         }
     }
 
