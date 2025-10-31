@@ -513,6 +513,12 @@ public class PlayerInteraction
                 }
             }
 
+            // Скрываем цену перед деактивацией предмета
+            if (itemObject.TryGetComponent<ItemPriceDisplay>(out var priceDisplay1))
+            {
+                priceDisplay1.HidePrice();
+            }
+
             // Уничтожаем BuffItem после применения (он одноразовый)
             itemObject.SetActive(false);
             Debug.Log($"✅ Куплен и применен бонус: {itemName} за {purchasePrice} (предмет уничтожен)");
@@ -522,6 +528,12 @@ public class PlayerInteraction
             // Добавляем оружие в инвентарь вместо мгновенного применения
             if (inventory.TryAdd(itemObject))
             {
+                // Скрываем цену перед деактивацией предмета
+                if (itemObject.TryGetComponent<ItemPriceDisplay>(out var priceDisplay2))
+                {
+                    priceDisplay2.HidePrice();
+                }
+
                 itemObject.SetActive(false);
                 weapon.ApplyWeaponStats(playerStats);
 
@@ -546,6 +558,12 @@ public class PlayerInteraction
             // Обычные предметы добавляем в инвентарь
             if (inventory.TryAdd(itemObject))
             {
+                // Скрываем цену перед деактивацией предмета
+                if (itemObject.TryGetComponent<ItemPriceDisplay>(out var priceDisplay3))
+                {
+                    priceDisplay3.HidePrice();
+                }
+
                 itemObject.SetActive(false);
                 Debug.Log($"✅ Куплен предмет: {itemName} за {purchasePrice}");
             }

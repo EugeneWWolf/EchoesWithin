@@ -255,9 +255,47 @@ public class ItemPriceDisplay : MonoBehaviour
         UpdatePriceDisplay();
     }
 
+    /// <summary>
+    /// Публичный метод для скрытия цены (например, после покупки предмета)
+    /// </summary>
+    public void HidePrice()
+    {
+        if (priceCanvasObj != null)
+        {
+            priceCanvasObj.SetActive(false);
+            // Уничтожаем Canvas, чтобы он не продолжал существовать
+            Destroy(priceCanvasObj);
+            priceCanvasObj = null;
+            Debug.Log($"👁 ItemPriceDisplay: Цена скрыта и Canvas уничтожен для {gameObject.name}");
+        }
+    }
+
+    /// <summary>
+    /// Публичный метод для показа цены
+    /// </summary>
+    public void ShowPrice()
+    {
+        if (priceCanvasObj != null && gameObject.activeInHierarchy)
+        {
+            priceCanvasObj.SetActive(true);
+            Debug.Log($"👁 ItemPriceDisplay: Цена показана для {gameObject.name}");
+        }
+    }
+
     private void LateUpdate()
     {
-        if (!isInitialized || priceCanvasObj == null || !gameObject.activeInHierarchy) return;
+        if (!isInitialized || priceCanvasObj == null) return;
+
+        // Если предмет неактивен, скрываем и уничтожаем цену
+        if (!gameObject.activeInHierarchy)
+        {
+            if (priceCanvasObj != null)
+            {
+                Destroy(priceCanvasObj);
+                priceCanvasObj = null;
+            }
+            return;
+        }
 
         // Фиксируем позицию Canvas в мировых координатах относительно предмета
         // Это предотвращает накопление смещения и подъем цен
@@ -309,11 +347,23 @@ public class ItemPriceDisplay : MonoBehaviour
         return shopZone.IsPlayerInside;
     }
 
+    private void OnDisable()
+    {
+        // При деактивации предмета сразу скрываем и уничтожаем цену
+        if (priceCanvasObj != null)
+        {
+            Destroy(priceCanvasObj);
+            priceCanvasObj = null;
+            Debug.Log($"👁 ItemPriceDisplay.OnDisable: Canvas уничтожен для {gameObject.name}");
+        }
+    }
+
     private void OnDestroy()
     {
         if (priceCanvasObj != null)
         {
             Destroy(priceCanvasObj);
+            priceCanvasObj = null;
         }
     }
 }
