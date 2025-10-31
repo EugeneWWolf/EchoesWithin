@@ -31,6 +31,10 @@ public class DungeonMonster : Enemy
     [SerializeField] private float respawnTime = 10f;
     [SerializeField] private Vector3 spawnPosition;
 
+    [Header("Damage Display")]
+    [SerializeField] private bool showDamageNumbers = true;
+    [SerializeField] private float damageTextHeight = 2f;
+
     [Header("Debug")]
     [SerializeField] private bool showDebugGizmos = true;
     [SerializeField] private Color patrolGizmoColor = Color.green;
@@ -92,6 +96,12 @@ public class DungeonMonster : Enemy
         // Получаем компоненты для скрытия при смерти
         renderers = GetComponentsInChildren<Renderer>();
         colliders = GetComponentsInChildren<Collider>();
+
+        // Если renderers не найдены, пытаемся найти в дочерних объектах
+        if (renderers == null || renderers.Length == 0)
+        {
+            renderers = GetComponentsInChildren<Renderer>();
+        }
 
         // Настраиваем NavMeshAgent
         agent.speed = patrolSpeed;
@@ -699,6 +709,83 @@ public class DungeonMonster : Enemy
         if (enableDebugLogs)
         {
             Debug.Log("👹 DungeonMonster: Игрок потерян. Возвращаюсь к патрулированию.");
+        }
+    }
+
+    public override void TakeDamage(float damageAmount)
+    {
+        if (isDead) return;
+
+        base.TakeDamage(damageAmount);
+
+        // Показываем числа урона
+        if (showDamageNumbers)
+        {
+            ShowDamageNumber(damageAmount);
+        }
+
+        // Эффект при получении урона
+        StartCoroutine(DamageEffect());
+    }
+
+    /// <summary>
+    /// Показ числа урона
+    /// </summary>
+    private void ShowDamageNumber(float damage)
+    {
+        Vector3 spawnPosition = transform.position + Vector3.up * damageTextHeight;
+
+        if (enableDebugLogs)
+        {
+            Debug.Log($"💥 Создаем текст урона для монстра: {damage} в позиции {spawnPosition}");
+        }
+
+        // Используем простую систему отображения урона
+        GameObject damageTextObj = SimpleDamageText.CreateDamageText(spawnPosition, damage);
+
+        if (damageTextObj != null)
+        {
+            if (enableDebugLogs)
+            {
+                Debug.Log($"✅ Текст урона для монстра создан: {damageTextObj.name}");
+            }
+        }
+        else
+        {
+            Debug.LogError("❌ Не удалось создать текст урона для монстра!");
+        }
+    }
+
+    /// <summary>
+    /// Эффект при получении урона
+    /// </summary>
+    private System.Collections.IEnumerator DamageEffect()
+    {
+        // Мигание красным
+        if (renderers != null && renderers.Length > 0)
+        {
+            Color[] originalColors = new Color[renderers.Length];
+
+            // Сохраняем оригинальные цвета и устанавливаем красный
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i] != null && renderers[i].material != null)
+                {
+                    originalColors[i] = renderers[i].material.color;
+                    renderers[i].material.color = Color.red;
+                }
+            }
+
+            yield return new WaitForSeconds(0.1f);
+
+            // Восстанавливаем оригинальные цвета
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i] != null && renderers[i].material != null)
+                {
+                    renderers[i].material.color = originalColors[i];
+                }
+            }
         }
     }
 

@@ -20,15 +20,25 @@ public class PlayerController : MonoBehaviour
     [Header("Combat")]
     [SerializeField] public PlayerCombat combat;
 
+    [Header("UI")]
+    [SerializeField] private PlayerHealthUI healthUI;
+
     [Header("Respawn Settings")]
     [SerializeField] private Vector3 respawnPosition = Vector3.zero;
     [SerializeField] private float respawnDelay = 2f;
     [SerializeField] private bool useInitialPositionAsRespawn = true;
 
+    [Header("Damage Visual Effects")]
+    [SerializeField] private bool enableDamageEffect = true;
+    [SerializeField] private float damageEffectDuration = 0.2f;
+    [SerializeField] private Color damageEffectColor = new Color(1f, 0f, 0f, 0.3f); // Красный полупрозрачный
+
     private CharacterController controller;
     private float currentHealth;
     private bool isDead = false;
     private Vector3 initialPosition;
+    private Camera playerCamera;
+    private Renderer[] playerRenderers;
     private PlayerMovement movement;
     private PlayerCameraController cameraController;
     private InventorySystem inventory;
@@ -65,6 +75,35 @@ public class PlayerController : MonoBehaviour
         // (здоровье обновляется через текущий метод, так что просто инициализируем)
 
         Debug.Log($"❤️ Игрок инициализирован. Здоровье: {currentHealth}/{playerStats.currentHealth}");
+
+        // Получаем камеру для эффекта урона
+        if (playerCameraT != null)
+        {
+            playerCamera = playerCameraT.GetComponent<Camera>();
+            if (playerCamera == null)
+            {
+                playerCamera = playerCameraT.GetComponentInChildren<Camera>();
+            }
+        }
+
+        // Получаем рендереры для визуального эффекта урона
+        playerRenderers = GetComponentsInChildren<Renderer>();
+
+        // Привязываем Health UI
+        if (healthUI != null)
+        {
+            healthUI.BindPlayer(this);
+        }
+        else
+        {
+            // Автоматически ищем Health UI в сцене
+            healthUI = FindObjectOfType<PlayerHealthUI>();
+            if (healthUI != null)
+            {
+                healthUI.BindPlayer(this);
+                Debug.Log("✅ PlayerHealthUI автоматически найден и привязан");
+            }
+        }
 
         // Инициализируем боевую систему
         if (combat == null)
@@ -279,6 +318,18 @@ public class PlayerController : MonoBehaviour
 
         Debug.Log($"💥 Игрок получил {damageAmount} урона. Здоровье: {currentHealth}/{playerStats.currentHealth}");
 
+        // Визуальный эффект урона
+        if (enableDamageEffect)
+        {
+            StartCoroutine(DamageVisualEffect());
+        }
+
+        // Обновляем UI здоровья
+        if (healthUI != null)
+        {
+            healthUI.RefreshDisplay();
+        }
+
         if (currentHealth <= 0)
         {
             Die();
@@ -296,6 +347,12 @@ public class PlayerController : MonoBehaviour
         currentHealth = Mathf.Min(playerStats.currentHealth, currentHealth);
 
         Debug.Log($"💚 Игрок восстановил {healAmount} здоровья. Здоровье: {currentHealth}/{playerStats.currentHealth}");
+
+        // Обновляем UI здоровья
+        if (healthUI != null)
+        {
+            healthUI.RefreshDisplay();
+        }
     }
 
     /// <summary>
@@ -370,4 +427,41 @@ public class PlayerController : MonoBehaviour
     /// Получение процента здоровья
     /// </summary>
     public float GetHealthPercentage() => GetMaxHealth() > 0 ? currentHealth / GetMaxHealth() : 0f;
+
+    /// <summary>
+    /// Визуальный эффект при получении урона
+    /// </summary>
+    private IEnumerator DamageVisualEffect()
+    {
+        // Метод 1: Красное мигание рендереров (если есть)
+        if (playerRenderers != null && playerRenderers.Length > 0)
+        {
+            Color[] originalColors = new Color[playerRenderers.Length];
+
+            // Сохраняем оригинальные цвета и устанавливаем красный
+            for (int i = 0; i < playerRenderers.Length; i++)
+            {
+                if (playerRenderers[i] != null && playerRenderers[i].material != null)
+                {
+                    originalColors[i] = playerRenderers[i].material.color;
+                    playerRenderers[i].material.color = Color.Lerp(originalColors[i], Color.red, 0.5f);
+                }
+            }
+
+            yield return new WaitForSeconds(damageEffectDuration);
+
+            // Восстанавливаем оригинальные цвета
+            for (int i = 0; i < playerRenderers.Length; i++)
+            {
+                if (playerRenderers[i] != null && playerRenderers[i].material != null)
+                {
+                    playerRenderers[i].material.color = originalColors[i];
+                }
+            }
+        }
+
+        // Метод 2: Эффект экрана (красный оттенок) через изменение цвета камеры
+        // Это можно улучшить, добавив специальный материал для эффекта урона
+        // Пока используем простой метод с рендерерами
+    }
 }
