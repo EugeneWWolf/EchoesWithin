@@ -12,12 +12,19 @@ public class DungeonItemSpawner : MonoBehaviour
     [SerializeField] private bool spawnOnStart = true;
     [SerializeField] private float spawnInterval = 30f; // Интервал между спавнами
     [SerializeField] private int maxItemsInDungeon = 20; // Максимальное количество предметов в данже
-    [SerializeField] private float spawnRadius = 15f; // Радиус спавна вокруг центра данжа
+    [SerializeField] private int initialSpawnCount = 15; // Количество предметов при старте (если не заполняет лимит)
+    [SerializeField] private bool fillToMaxOnStart = true; // Заполнять до максимума при старте
 
-    [Header("Spawn Areas")]
-    [SerializeField] private Transform dungeonCenter; // Центр данжа
+    [Header("Spawn Mode")]
+    [SerializeField] private SpawnMode spawnMode = SpawnMode.UseNodes; // Режим спавна
+    [SerializeField] private DungeonNodeGenerator nodeGenerator; // Генератор нодов (необязательно, если ноды расставлены вручную)
+    [SerializeField] private Transform nodesParent; // Родительский объект с нодами (если ноды расставлены вручную)
+
+    [Header("Spawn Areas (для Fallback режима)")]
+    [SerializeField] private Transform dungeonCenter; // Центр данжа (используется если ноды не найдены)
     [SerializeField] private LayerMask groundLayer = 1; // Слой земли для размещения предметов
     [SerializeField] private float groundCheckDistance = 10f; // Расстояние для поиска земли
+    [SerializeField] private float spawnRadius = 15f; // Радиус спавна вокруг центра данжа
 
     [Header("Item Types")]
     [SerializeField] private ItemSpawnConfig[] spawnConfigs; // Конфигурация типов предметов!
@@ -30,6 +37,15 @@ public class DungeonItemSpawner : MonoBehaviour
     private DungeonItemManager itemManager;
     private List<GameObject> spawnedItems = new List<GameObject>();
     private Coroutine spawnCoroutine;
+    private List<DungeonSpawnNode> availableNodes = new List<DungeonSpawnNode>();
+    private HashSet<DungeonSpawnNode> usedNodes = new HashSet<DungeonSpawnNode>(); // Ноды, где уже спавнились предметы
+
+    public enum SpawnMode
+    {
+        UseNodes,      // Использовать ноды для спавна
+        RandomSpawn,   // Случайный спавн (старый метод)
+        Hybrid         // Пытаться использовать ноды, если не найдены - случайный спавн
+    }
 
     [System.Serializable]
     public class ItemSpawnConfig
@@ -65,12 +81,15 @@ public class DungeonItemSpawner : MonoBehaviour
             dungeonCenter = transform;
         }
 
+        // Инициализируем ноды
+        InitializeNodes();
+
         if (spawnOnStart)
         {
             StartSpawning();
         }
 
-        Debug.Log($"🏰 DungeonItemSpawner: Инициализирован. Центр: {dungeonCenter.position}, Радиус: {spawnRadius}");
+        Debug.Log($"🏰 DungeonItemSpawner: Инициализирован. Режим: {spawnMode}, Нодов найдено: {availableNodes.Count}");
     }
 
     /// <summary>
@@ -103,9 +122,31 @@ public class DungeonItemSpawner : MonoBehaviour
 
     private IEnumerator SpawnItemsCoroutine()
     {
+        // Первый спавн сразу при старте - заполняем данж
+        Debug.Log("🏰 DungeonItemSpawner: Начинаем начальный спавн предметов");
+        CleanupDestroyedItems();
+
+        if (fillToMaxOnStart)
+        {
+            // Заполняем до максимума
+            Debug.Log($"🏰 DungeonItemSpawner: Заполняем данж до максимума ({maxItemsInDungeon} предметов)");
+            yield return StartCoroutine(FillDungeonToTarget(maxItemsInDungeon));
+        }
+        else
+        {
+            // Спавним начальное количество
+            int targetCount = Mathf.Min(initialSpawnCount, maxItemsInDungeon);
+            Debug.Log($"🏰 DungeonItemSpawner: Заполняем данж до {targetCount} предметов");
+            yield return StartCoroutine(FillDungeonToTarget(targetCount));
+        }
+
+        Debug.Log($"🏰 DungeonItemSpawner: Начальный спавн завершен. Предметов в данже: {spawnedItems.Count}/{maxItemsInDungeon}");
+
+        // Затем спавним по интервалу
         while (true)
         {
             yield return new WaitForSeconds(spawnInterval);
+            Debug.Log($"🏰 DungeonItemSpawner: Интервал спавна прошел ({spawnInterval}с), проверяем необходимость спавна");
 
             // Очищаем уничтоженные предметы из списка
             CleanupDestroyedItems();
@@ -119,6 +160,95 @@ public class DungeonItemSpawner : MonoBehaviour
             {
                 Debug.Log($"🏰 DungeonItemSpawner: Достигнуто максимальное количество предметов ({maxItemsInDungeon})");
             }
+        }
+    }
+
+    /// <summary>
+    /// Заполняет данж до целевого количества предметов
+    /// </summary>
+    private IEnumerator FillDungeonToTarget(int targetCount)
+    {
+        Debug.Log($"🏰 DungeonItemSpawner: Начинаем заполнение данжа до {targetCount} предметов");
+
+        int attempts = 0;
+        int maxAttempts = targetCount * 20; // Ограничение попыток чтобы избежать бесконечного цикла
+        int itemsNeeded = targetCount - spawnedItems.Count;
+
+        // Очищаем список использованных нодов для начального заполнения
+        usedNodes.Clear();
+
+        while (spawnedItems.Count < targetCount && attempts < maxAttempts)
+        {
+            attempts++;
+
+            // Очищаем уничтоженные предметы
+            CleanupDestroyedItems();
+
+            // Если уже достигли цели, выходим
+            if (spawnedItems.Count >= targetCount)
+                break;
+
+            itemsNeeded = targetCount - spawnedItems.Count;
+
+            // Спавним предметы всех типов одновременно
+            int itemsSpawnedThisIteration = 0;
+
+            foreach (var config in spawnConfigs)
+            {
+                if (spawnedItems.Count >= targetCount)
+                    break;
+
+                // Для начального заполнения спавним больше предметов сразу
+                // Распределяем предметы между типами пропорционально
+                int itemsForThisType = Mathf.Min(
+                    Random.Range(config.minCount, config.maxCount + 1) * 2, // Удваиваем для быстрого заполнения
+                    itemsNeeded
+                );
+
+                for (int i = 0; i < itemsForThisType; i++)
+                {
+                    if (spawnedItems.Count >= targetCount)
+                        break;
+
+                    Vector3 spawnPosition = GetRandomSpawnPosition();
+                    if (spawnPosition != Vector3.zero)
+                    {
+                        SpawnItem(config, spawnPosition);
+                        itemsSpawnedThisIteration++;
+                    }
+                    else
+                    {
+                        // Если не получилось найти позицию, пропускаем
+                        break;
+                    }
+                }
+            }
+
+            // Логируем прогресс периодически
+            if (attempts % 5 == 0 || spawnedItems.Count >= targetCount)
+            {
+                Debug.Log($"🏰 DungeonItemSpawner: Прогресс заполнения: {spawnedItems.Count}/{targetCount} ({itemsSpawnedThisIteration} спавнено в этой итерации)");
+            }
+
+            // Если ничего не спавнилось за 3 попытки подряд, выходим
+            if (itemsSpawnedThisIteration == 0 && attempts > 3)
+            {
+                Debug.LogWarning($"🏰 DungeonItemSpawner: Не удается спавнить предметы. Заполнено {spawnedItems.Count}/{targetCount}");
+                break;
+            }
+
+            // Небольшая задержка между итерациями (чтобы не заморозить игру)
+            if (attempts % 10 == 0)
+            {
+                yield return null;
+            }
+        }
+
+        Debug.Log($"🏰 DungeonItemSpawner: Заполнение завершено. Создано {spawnedItems.Count}/{targetCount} предметов за {attempts} попыток");
+
+        if (attempts >= maxAttempts)
+        {
+            Debug.LogWarning($"🏰 DungeonItemSpawner: Достигнуто максимальное количество попыток ({maxAttempts}). Заполнено {spawnedItems.Count}/{targetCount} предметов");
         }
     }
 
@@ -138,7 +268,15 @@ public class DungeonItemSpawner : MonoBehaviour
     /// </summary>
     public void SpawnRandomItems()
     {
-        Debug.Log($"🏰 DungeonItemSpawner: Начинаем спавн предметов. Текущее количество: {spawnedItems.Count}");
+        Debug.Log($"🏰 DungeonItemSpawner: Начинаем спавн предметов. Текущее количество: {spawnedItems.Count}/{maxItemsInDungeon}, Доступных нодов: {availableNodes.Count}, Использовано: {usedNodes.Count}");
+
+        if (spawnConfigs == null || spawnConfigs.Length == 0)
+        {
+            Debug.LogWarning("🏰 DungeonItemSpawner: Нет конфигураций для спавна предметов!");
+            return;
+        }
+
+        int itemsSpawnedThisCycle = 0;
 
         foreach (var config in spawnConfigs)
         {
@@ -149,9 +287,13 @@ public class DungeonItemSpawner : MonoBehaviour
                 break;
             }
 
-            if (Random.value <= config.spawnChance)
+            float roll = Random.value;
+            Debug.Log($"🏰 DungeonItemSpawner: Проверка спавна {config.itemType}: roll={roll:F2}, chance={config.spawnChance:F2}");
+
+            if (roll <= config.spawnChance)
             {
                 int count = Random.Range(config.minCount, config.maxCount + 1);
+                Debug.Log($"🏰 DungeonItemSpawner: Спавним {count} предметов типа {config.itemType}");
 
                 for (int i = 0; i < count; i++)
                 {
@@ -166,15 +308,138 @@ public class DungeonItemSpawner : MonoBehaviour
                     if (spawnPosition != Vector3.zero)
                     {
                         SpawnItem(config, spawnPosition);
+                        itemsSpawnedThisCycle++;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"🏰 DungeonItemSpawner: Не удалось получить валидную позицию для спавна предмета {config.itemType}");
                     }
                 }
             }
+            else
+            {
+                Debug.Log($"🏰 DungeonItemSpawner: {config.itemType} не спавнится (roll {roll:F2} > chance {config.spawnChance:F2})");
+            }
         }
 
-        Debug.Log($"🏰 DungeonItemSpawner: Спавн завершен. Общее количество предметов: {spawnedItems.Count}/{maxItemsInDungeon}");
+        Debug.Log($"🏰 DungeonItemSpawner: Спавн завершен. Создано предметов в этом цикле: {itemsSpawnedThisCycle}, Общее количество: {spawnedItems.Count}/{maxItemsInDungeon}");
     }
 
+    /// <summary>
+    /// Инициализирует список доступных нодов для спавна
+    /// </summary>
+    private void InitializeNodes()
+    {
+        availableNodes.Clear();
+        usedNodes.Clear();
+
+        if (spawnMode == SpawnMode.RandomSpawn)
+        {
+            Debug.Log("🏰 DungeonItemSpawner: Режим случайного спавна, ноды не используются");
+            return;
+        }
+
+        // Пытаемся найти ноды через генератор
+        if (nodeGenerator != null)
+        {
+            availableNodes = nodeGenerator.GetAllNodes();
+            Debug.Log($"🏰 DungeonItemSpawner: Найдено {availableNodes.Count} нодов через генератор");
+        }
+
+        // Если ноды не найдены, ищем в родительском объекте
+        if (availableNodes.Count == 0 && nodesParent != null)
+        {
+            DungeonSpawnNode[] nodes = nodesParent.GetComponentsInChildren<DungeonSpawnNode>();
+            availableNodes.AddRange(nodes);
+            Debug.Log($"🏰 DungeonItemSpawner: Найдено {availableNodes.Count} нодов в родительском объекте");
+        }
+
+        // Если ноды все еще не найдены, ищем по всей сцене
+        if (availableNodes.Count == 0)
+        {
+            DungeonSpawnNode[] allNodes = FindObjectsOfType<DungeonSpawnNode>();
+            availableNodes.AddRange(allNodes);
+            Debug.Log($"🏰 DungeonItemSpawner: Найдено {availableNodes.Count} нодов в сцене");
+        }
+
+        // Фильтруем только активные ноды
+        availableNodes.RemoveAll(node => node == null || !node.IsActive);
+
+        Debug.Log($"🏰 DungeonItemSpawner: Инициализировано {availableNodes.Count} активных нодов");
+    }
+
+    /// <summary>
+    /// Получает позицию для спавна в зависимости от режима
+    /// </summary>
     private Vector3 GetRandomSpawnPosition()
+    {
+        // Используем ноды если доступны и режим позволяет
+        if ((spawnMode == SpawnMode.UseNodes || spawnMode == SpawnMode.Hybrid) && availableNodes.Count > 0)
+        {
+            return GetPositionFromNode();
+        }
+
+        // Fallback к случайному спавну
+        if (spawnMode == SpawnMode.RandomSpawn || spawnMode == SpawnMode.Hybrid)
+        {
+            return GetRandomSpawnPositionFallback();
+        }
+
+        return Vector3.zero;
+    }
+
+    /// <summary>
+    /// Получает позицию из доступного нода
+    /// </summary>
+    private Vector3 GetPositionFromNode()
+    {
+        // Получаем список доступных нодов (не использованных и активных)
+        List<DungeonSpawnNode> freeNodes = availableNodes.FindAll(node =>
+            node != null && node.IsActive && !usedNodes.Contains(node));
+
+        if (freeNodes.Count == 0)
+        {
+            // Если все ноды использованы, очищаем список использованных (для повторного использования)
+            if (usedNodes.Count > 0)
+            {
+                Debug.Log($"🏰 DungeonItemSpawner: Все ноды использованы ({usedNodes.Count}), очищаем список использованных для повторного использования");
+                usedNodes.Clear();
+                freeNodes = availableNodes.FindAll(node => node != null && node.IsActive);
+            }
+
+            if (freeNodes.Count == 0)
+            {
+                Debug.LogWarning($"🏰 DungeonItemSpawner: Нет доступных нодов для спавна (всего нодов: {availableNodes.Count}, использовано: {usedNodes.Count})");
+                return spawnMode == SpawnMode.Hybrid ? GetRandomSpawnPositionFallback() : Vector3.zero;
+            }
+        }
+
+        // Выбираем случайный нод
+        DungeonSpawnNode selectedNode = freeNodes[Random.Range(0, freeNodes.Count)];
+        Vector3 spawnPos = selectedNode.GetSpawnPosition();
+
+        // Добавляем нод в использованные только если позиция валидна
+        if (spawnPos != Vector3.zero)
+        {
+            usedNodes.Add(selectedNode);
+            // Логируем только периодически, чтобы не засорять консоль при массовом спавне
+            if (usedNodes.Count % 10 == 0 || usedNodes.Count <= 3)
+            {
+                Debug.Log($"🏰 DungeonItemSpawner: Выбран нод #{usedNodes.Count} в позиции {spawnPos} (свободных нодов: {freeNodes.Count - 1})");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"🏰 DungeonItemSpawner: Нод вернул невалидную позицию Vector3.zero");
+        }
+
+        return spawnPos;
+    }
+
+    /// <summary>
+    /// Старый метод случайного спавна (fallback)
+    /// </summary>
+    private Vector3 GetRandomSpawnPositionFallback()
     {
         Vector3 center = dungeonCenter.position;
 
@@ -191,6 +456,15 @@ public class DungeonItemSpawner : MonoBehaviour
 
         // Если земля не найдена, размещаем на уровне центра данжа
         return new Vector3(randomPosition.x, center.y, randomPosition.z);
+    }
+
+    /// <summary>
+    /// Обновляет список доступных нодов (вызывается при необходимости)
+    /// </summary>
+    [ContextMenu("Refresh Nodes")]
+    public void RefreshNodes()
+    {
+        InitializeNodes();
     }
 
     private void SpawnItem(ItemSpawnConfig config, Vector3 position)
@@ -292,9 +566,33 @@ public class DungeonItemSpawner : MonoBehaviour
 
         Gizmos.color = gizmoColor;
 
-        // Рисуем радиус спавна
-        Vector3 center = dungeonCenter != null ? dungeonCenter.position : transform.position;
-        Gizmos.DrawWireSphere(center, spawnRadius);
+        // Рисуем радиус спавна (только если используется fallback режим)
+        if (spawnMode == SpawnMode.RandomSpawn || (spawnMode == SpawnMode.Hybrid && availableNodes.Count == 0))
+        {
+            Vector3 center = dungeonCenter != null ? dungeonCenter.position : transform.position;
+            Gizmos.DrawWireSphere(center, spawnRadius);
+        }
+
+        // Рисуем ноды если они используются
+        if (availableNodes.Count > 0 && (spawnMode == SpawnMode.UseNodes || spawnMode == SpawnMode.Hybrid))
+        {
+            Gizmos.color = Color.cyan;
+            foreach (var node in availableNodes)
+            {
+                if (node != null && node.IsActive)
+                {
+                    if (usedNodes.Contains(node))
+                    {
+                        Gizmos.color = Color.yellow;
+                    }
+                    else
+                    {
+                        Gizmos.color = Color.cyan;
+                    }
+                    Gizmos.DrawWireSphere(node.transform.position, 0.3f);
+                }
+            }
+        }
 
         // Рисуем позиции спавненных предметов
         Gizmos.color = Color.red;
@@ -313,10 +611,12 @@ public class DungeonItemSpawner : MonoBehaviour
 
         GUILayout.BeginArea(new Rect(10, 500, 300, 200));
         GUILayout.Label("=== DUNGEON ITEM SPAWNER ===");
+        GUILayout.Label($"Spawn Mode: {spawnMode}");
+        GUILayout.Label($"Available Nodes: {availableNodes.Count}");
+        GUILayout.Label($"Used Nodes: {usedNodes.Count}");
         GUILayout.Label($"Items in Dungeon: {spawnedItems.Count}/{maxItemsInDungeon}");
         GUILayout.Label($"Can Spawn More: {CanSpawnMoreItems()}");
         GUILayout.Label($"Spawn Interval: {spawnInterval}s");
-        GUILayout.Label($"Spawn Radius: {spawnRadius}");
 
         // Показываем предупреждение если лимит превышен
         if (spawnedItems.Count > maxItemsInDungeon)
@@ -334,6 +634,11 @@ public class DungeonItemSpawner : MonoBehaviour
         if (GUILayout.Button("Clear All Items"))
         {
             ClearAllItems();
+        }
+
+        if (GUILayout.Button("Refresh Nodes"))
+        {
+            RefreshNodes();
         }
 
         if (GUILayout.Button("Debug Item Count"))
