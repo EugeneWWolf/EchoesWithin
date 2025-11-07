@@ -26,7 +26,7 @@ public class TeleportZone : MonoBehaviour
     private void Start()
     {
         // Находим игрока
-        playerController = FindObjectOfType<PlayerController>();
+        playerController = FindFirstObjectByType<PlayerController>();
         if (playerController == null)
         {
             Debug.LogError("❌ TeleportZone: Не найден PlayerController!");
@@ -240,29 +240,6 @@ public class TeleportZone : MonoBehaviour
                 Debug.Log($"🔄 Прогресс возврата: {progress:P0} ({holdProgress:F1}/{holdTime:F1}с)");
             }
         }
-    }
-
-    private void CreateProgressIndicator()
-    {
-        // Создаем простой индикатор прогресса
-        GameObject indicator = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        indicator.name = "ProgressIndicator";
-        indicator.transform.SetParent(transform);
-        indicator.transform.localPosition = Vector3.up * 2f;
-        indicator.transform.localScale = Vector3.zero;
-
-        // Убираем коллайдер
-        DestroyImmediate(indicator.GetComponent<Collider>());
-
-        // Настраиваем материал
-        Renderer indicatorRenderer = indicator.GetComponent<Renderer>();
-        Material indicatorMaterial = new Material(Shader.Find("Standard"));
-        indicatorMaterial.color = Color.blue;
-        indicatorMaterial.SetFloat("_Metallic", 0f);
-        indicatorMaterial.SetFloat("_Smoothness", 0.5f);
-        indicatorRenderer.material = indicatorMaterial;
-
-        progressIndicator = indicator;
     }
 
     private bool IsPlayer(Collider other)
