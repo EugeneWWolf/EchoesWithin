@@ -4545,6 +4545,10 @@ MonoBehaviour:
   wallet: {fileID: 1409183791}
   errorMessagePrefab: {fileID: 503879988}
   errorMessageDuration: 3
+  victoryImage: {fileID: 0}
+  pressEnterText: Press Enter to exit
+  pressEnterFontSize: 36
+  pressEnterTextColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!136 &267275242
 CapsuleCollider:
   m_ObjectHideFlags: 0
