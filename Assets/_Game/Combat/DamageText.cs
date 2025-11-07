@@ -1,9 +1,9 @@
-using UnityEngine;
+п»їusing UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
 
 /// <summary>
-/// Компонент для отображения текста урона
+/// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
 /// </summary>
 public class DamageText : MonoBehaviour
 {
@@ -35,8 +35,21 @@ public class DamageText : MonoBehaviour
         StartCoroutine(AnimateText());
     }
 
+    private void LateUpdate()
+    {
+        // РџРѕРІРѕСЂР°С‡РёРІР°РµРј С‚РµРєСЃС‚ Рє РєР°РјРµСЂРµ (billboard СЌС„С„РµРєС‚)
+        if (Camera.main != null)
+        {
+            Vector3 directionToCamera = Camera.main.transform.position - transform.position;
+            if (directionToCamera != Vector3.zero)
+            {
+                transform.rotation = Quaternion.LookRotation(-directionToCamera);
+            }
+        }
+    }
+
     /// <summary>
-    /// Устанавливает текст урона
+    /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     /// </summary>
     public void SetDamage(float damage)
     {
@@ -44,7 +57,7 @@ public class DamageText : MonoBehaviour
         {
             damageText.text = damage.ToString("F0");
 
-            // Цвет в зависимости от урона
+            // пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
             if (damage >= 50)
                 damageText.color = Color.red;
             else if (damage >= 25)
@@ -54,13 +67,13 @@ public class DamageText : MonoBehaviour
         }
         else
         {
-            // Если damageText не найден, ищем его
+            // пїЅпїЅпїЅпїЅ damageText пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ
             damageText = GetComponentInChildren<Text>();
             if (damageText != null)
             {
                 damageText.text = damage.ToString("F0");
 
-                // Цвет в зависимости от урона
+                // пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
                 if (damage >= 50)
                     damageText.color = Color.red;
                 else if (damage >= 25)
@@ -72,7 +85,7 @@ public class DamageText : MonoBehaviour
     }
 
     /// <summary>
-    /// Анимация текста
+    /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     /// </summary>
     private IEnumerator AnimateText()
     {
@@ -83,10 +96,10 @@ public class DamageText : MonoBehaviour
             float elapsed = Time.time - startTime;
             float progress = elapsed / lifetime;
 
-            // Движение вверх
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
             transform.position = startPosition + moveDirection * moveSpeed * elapsed;
 
-            // Затухание
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
             if (canvasGroup != null)
             {
                 canvasGroup.alpha = 1f - progress;
@@ -95,12 +108,12 @@ public class DamageText : MonoBehaviour
             yield return null;
         }
 
-        // Уничтожаем объект
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         Destroy(gameObject);
     }
 
     /// <summary>
-    /// Создает текст урона в указанной позиции
+    /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     /// </summary>
     public static GameObject CreateDamageText(Vector3 position, float damage, GameObject prefab = null)
     {
@@ -112,11 +125,11 @@ public class DamageText : MonoBehaviour
         }
         else
         {
-            // Создаем простой текст урона
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
             damageTextObj = CreateSimpleDamageText(position);
         }
 
-        // Настраиваем урон
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
         DamageText damageTextComponent = damageTextObj.GetComponent<DamageText>();
         if (damageTextComponent == null)
         {
@@ -129,11 +142,11 @@ public class DamageText : MonoBehaviour
     }
 
     /// <summary>
-    /// Создает простой текст урона без префаба
+    /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     /// </summary>
     private static GameObject CreateSimpleDamageText(Vector3 position)
     {
-        // Создаем Canvas
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ Canvas
         GameObject canvasObj = new GameObject("DamageTextCanvas");
         canvasObj.transform.position = position;
 
@@ -144,23 +157,23 @@ public class DamageText : MonoBehaviour
         CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
         scaler.dynamicPixelsPerUnit = 10f;
 
-        // Настраиваем размер Canvas
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ Canvas
         RectTransform canvasRect = canvasObj.GetComponent<RectTransform>();
         canvasRect.sizeDelta = new Vector2(2f, 1f);
-        canvasRect.localScale = Vector3.one * 0.1f; // Уменьшаем размер
+        canvasRect.localScale = Vector3.one * 0.1f; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 
-        // Создаем Text
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ Text
         GameObject textObj = new GameObject("DamageText");
         textObj.transform.SetParent(canvasObj.transform);
 
         Text text = textObj.AddComponent<Text>();
         text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        text.fontSize = 200; // Увеличиваем размер шрифта
+        text.fontSize = 200; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         text.color = Color.white;
         text.alignment = TextAnchor.MiddleCenter;
-        text.text = "100"; // Тестовый текст
+        text.text = "100"; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
 
-        // Настраиваем RectTransform
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ RectTransform
         RectTransform textRect = textObj.GetComponent<RectTransform>();
         textRect.anchorMin = Vector2.zero;
         textRect.anchorMax = Vector2.one;
@@ -169,7 +182,7 @@ public class DamageText : MonoBehaviour
         textRect.localPosition = Vector3.zero;
         textRect.localScale = Vector3.one;
 
-        // Добавляем Outline для лучшей видимости
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ Outline пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         Outline outline = textObj.AddComponent<Outline>();
         outline.effectColor = Color.black;
         outline.effectDistance = new Vector2(2, 2);

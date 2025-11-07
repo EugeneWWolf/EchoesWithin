@@ -1,8 +1,8 @@
-using UnityEngine;
+п»їusing UnityEngine;
 using System.Collections;
 
 /// <summary>
-/// Простая система отображения урона с 3D текстом
+/// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ 3D пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 /// </summary>
 public class SimpleDamageText : MonoBehaviour
 {
@@ -33,8 +33,21 @@ public class SimpleDamageText : MonoBehaviour
         StartCoroutine(AnimateText());
     }
 
+    private void LateUpdate()
+    {
+        // РџРѕРІРѕСЂР°С‡РёРІР°РµРј С‚РµРєСЃС‚ Рє РєР°РјРµСЂРµ (billboard СЌС„С„РµРєС‚)
+        if (Camera.main != null)
+        {
+            Vector3 directionToCamera = Camera.main.transform.position - transform.position;
+            if (directionToCamera != Vector3.zero)
+            {
+                transform.rotation = Quaternion.LookRotation(-directionToCamera);
+            }
+        }
+    }
+
     /// <summary>
-    /// Устанавливает текст урона
+    /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     /// </summary>
     public void SetDamage(float damage)
     {
@@ -45,7 +58,7 @@ public class SimpleDamageText : MonoBehaviour
             textMesh.anchor = TextAnchor.MiddleCenter;
             textMesh.alignment = TextAlignment.Center;
 
-            // Цвет в зависимости от урона
+            // пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
             if (damage >= 50)
                 textMesh.color = Color.red;
             else if (damage >= 25)
@@ -58,7 +71,7 @@ public class SimpleDamageText : MonoBehaviour
     }
 
     /// <summary>
-    /// Анимация текста
+    /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     /// </summary>
     private IEnumerator AnimateText()
     {
@@ -69,10 +82,10 @@ public class SimpleDamageText : MonoBehaviour
             float elapsed = Time.time - startTime;
             float progress = elapsed / lifetime;
 
-            // Движение вверх
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
             transform.position = startPosition + moveDirection * moveSpeed * elapsed;
 
-            // Затухание
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
             if (textMesh != null)
             {
                 Color currentColor = originalColor;
@@ -83,26 +96,26 @@ public class SimpleDamageText : MonoBehaviour
             yield return null;
         }
 
-        // Уничтожаем объект
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         Destroy(gameObject);
     }
 
     /// <summary>
-    /// Создает текст урона в указанной позиции
+    /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     /// </summary>
     public static GameObject CreateDamageText(Vector3 position, float damage)
     {
         GameObject damageTextObj = new GameObject("DamageText");
         damageTextObj.transform.position = position;
 
-        // Добавляем TextMesh
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ TextMesh
         TextMesh textMesh = damageTextObj.AddComponent<TextMesh>();
         textMesh.text = damage.ToString("F0");
         textMesh.fontSize = 20;
         textMesh.anchor = TextAnchor.MiddleCenter;
         textMesh.alignment = TextAlignment.Center;
 
-        // Цвет в зависимости от урона
+        // пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
         if (damage >= 50)
             textMesh.color = Color.red;
         else if (damage >= 25)
@@ -110,7 +123,7 @@ public class SimpleDamageText : MonoBehaviour
         else
             textMesh.color = Color.white;
 
-        // Добавляем компонент анимации
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         SimpleDamageText damageText = damageTextObj.AddComponent<SimpleDamageText>();
 
         return damageTextObj;
