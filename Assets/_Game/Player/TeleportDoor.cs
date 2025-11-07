@@ -5,7 +5,8 @@ public class TeleportDoor : MonoBehaviour
 {
     [Header("Teleport Settings")]
     [SerializeField] private Transform dungeonSpawnPoint;
-    [SerializeField] private float holdTime = 3f;
+    [SerializeField] private float holdTime = 3f; // Больше не используется, оставлено для совместимости
+    [SerializeField] private float teleportDelay = 0.5f; // Задержка перед телепортацией при входе в триггер
     [SerializeField] private LayerMask playerLayer = 1; // Default layer
 
     [Header("Visual Feedback")]
@@ -16,6 +17,7 @@ public class TeleportDoor : MonoBehaviour
     private bool isPlayerNearby = false;
     private bool isHolding = false;
     private float holdProgress = 0f;
+    private bool isTeleporting = false; // Флаг, чтобы избежать повторной телепортации
     private PlayerController playerController;
     private Renderer doorRenderer;
     private Material originalMaterial;
@@ -46,6 +48,22 @@ public class TeleportDoor : MonoBehaviour
             }
         }
 
+        // Убеждаемся, что есть триггер коллайдер
+        Collider collider = GetComponent<Collider>();
+        if (collider == null)
+        {
+            // Добавляем BoxCollider по умолчанию
+            BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
+            boxCollider.isTrigger = true;
+            Debug.Log($"🔧 TeleportDoor: Добавлен BoxCollider (триггер) для {gameObject.name}");
+        }
+        else if (!collider.isTrigger)
+        {
+            // Делаем существующий коллайдер триггером
+            collider.isTrigger = true;
+            Debug.Log($"🔧 TeleportDoor: Коллайдер установлен как триггер для {gameObject.name}");
+        }
+
         // Настраиваем визуальные эффекты
         doorRenderer = GetComponent<Renderer>();
         if (doorRenderer != null)
@@ -53,9 +71,7 @@ public class TeleportDoor : MonoBehaviour
             originalMaterial = doorRenderer.material;
         }
 
-        // Визуальная индикация отключена - только логи
-
-        Debug.Log($"🚪 TeleportDoor инициализирован. Время зажатия: {holdTime} секунд");
+        Debug.Log($"✅ TeleportDoor инициализирован. Задержка телепортации: {teleportDelay} секунд");
     }
 
     private void Update()
@@ -81,11 +97,34 @@ public class TeleportDoor : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (IsPlayer(other))
+        if (IsPlayer(other) && !isTeleporting)
         {
             isPlayerNearby = true;
-            Debug.Log("🚪 Игрок рядом с дверью. Зажмите кнопку взаимодействия для телепортации в данж.");
+            Debug.Log("🚪 Игрок вошел в дверь. Начинаем телепортацию в данж...");
+
+            // Автоматически телепортируем при входе в триггер
+            if (teleportDelay > 0f)
+            {
+                Debug.Log($"🚪 Задержка телепортации: {teleportDelay} секунд");
+                StartCoroutine(DelayedTeleport(teleportDelay));
+            }
+            else
+            {
+                Debug.Log("🚪 Мгновенная телепортация");
+                TeleportToDungeon();
+            }
         }
+        else if (IsPlayer(other) && isTeleporting)
+        {
+            Debug.Log("🚪 Игрок уже в процессе телепортации, пропускаем");
+        }
+    }
+
+    private IEnumerator DelayedTeleport(float delay)
+    {
+        isTeleporting = true;
+        yield return new WaitForSeconds(delay);
+        TeleportToDungeon();
     }
 
     private void OnTriggerExit(Collider other)
@@ -95,6 +134,7 @@ public class TeleportDoor : MonoBehaviour
             isPlayerNearby = false;
             isHolding = false;
             holdProgress = 0f;
+            isTeleporting = false; // Сбрасываем флаг при выходе
             UpdateVisualFeedback();
             Debug.Log("🚪 Игрок отошел от двери.");
         }
@@ -102,22 +142,20 @@ public class TeleportDoor : MonoBehaviour
 
     public void StartHold()
     {
-        if (!isHolding)
-        {
-            isHolding = true;
-            holdProgress = 0f;
-            Debug.Log("🚪 Начало зажатия кнопки для телепортации...");
-        }
+        // Игнорируем зажатие клавиши - телепортация теперь автоматическая при входе в триггер
+        // Оставляем метод для совместимости, но он больше не используется
+        Debug.Log("ℹ TeleportDoor: StartHold() вызван, но игнорируется. Телепортация происходит автоматически при входе в триггер.");
     }
 
     public void StopHold()
     {
+        // Игнорируем остановку зажатия - телепортация теперь автоматическая при входе в триггер
+        // Оставляем метод для совместимости, но он больше не используется
         if (isHolding)
         {
             isHolding = false;
             holdProgress = 0f;
             UpdateVisualFeedback();
-            Debug.Log("🚪 Зажатие кнопки прервано.");
         }
     }
 
@@ -196,6 +234,7 @@ public class TeleportDoor : MonoBehaviour
         // Сбрасываем состояние
         isHolding = false;
         holdProgress = 0f;
+        isTeleporting = false;
         UpdateVisualFeedback();
 
         // Уведомляем PlayerInteraction о завершении

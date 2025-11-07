@@ -5,7 +5,8 @@ public class TeleportZone : MonoBehaviour
 {
     [Header("Teleport Settings")]
     [SerializeField] private Transform returnSpawnPoint;
-    [SerializeField] private float holdTime = 3f;
+    [SerializeField] private float holdTime = 3f; // Больше не используется, оставлено для совместимости
+    [SerializeField] private float teleportDelay = 0.5f; // Задержка перед телепортацией при входе в триггер
     [SerializeField] private LayerMask playerLayer = 1; // Default layer
 
     [Header("Visual Feedback")]
@@ -16,6 +17,7 @@ public class TeleportZone : MonoBehaviour
     private bool isPlayerNearby = false;
     private bool isHolding = false;
     private float holdProgress = 0f;
+    private bool isTeleporting = false; // Флаг, чтобы избежать повторной телепортации
     private PlayerController playerController;
     private Renderer zoneRenderer;
     private Material originalMaterial;
@@ -30,6 +32,22 @@ public class TeleportZone : MonoBehaviour
             return;
         }
 
+        // Убеждаемся, что есть триггер коллайдер
+        Collider collider = GetComponent<Collider>();
+        if (collider == null)
+        {
+            // Добавляем BoxCollider по умолчанию
+            BoxCollider boxCollider = gameObject.AddComponent<BoxCollider>();
+            boxCollider.isTrigger = true;
+            Debug.Log($"🔧 TeleportZone: Добавлен BoxCollider (триггер) для {gameObject.name}");
+        }
+        else if (!collider.isTrigger)
+        {
+            // Делаем существующий коллайдер триггером
+            collider.isTrigger = true;
+            Debug.Log($"🔧 TeleportZone: Коллайдер установлен как триггер для {gameObject.name}");
+        }
+
         // Настраиваем визуальные эффекты
         zoneRenderer = GetComponent<Renderer>();
         if (zoneRenderer != null)
@@ -37,7 +55,7 @@ public class TeleportZone : MonoBehaviour
             originalMaterial = zoneRenderer.material;
         }
 
-        // Визуальная индикация отключена - только логи
+        Debug.Log($"✅ TeleportZone инициализирован. Задержка телепортации: {teleportDelay} секунд");
     }
 
     private void Update()
@@ -56,11 +74,34 @@ public class TeleportZone : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (IsPlayer(other))
+        if (IsPlayer(other) && !isTeleporting)
         {
             isPlayerNearby = true;
-            Debug.Log("🔄 Игрок рядом с зоной возврата. Зажмите кнопку взаимодействия для возврата на поверхность.");
+            Debug.Log("🔄 Игрок вошел в зону возврата. Начинаем возврат на поверхность...");
+
+            // Автоматически телепортируем при входе в триггер
+            if (teleportDelay > 0f)
+            {
+                Debug.Log($"🔄 Задержка телепортации: {teleportDelay} секунд");
+                StartCoroutine(DelayedTeleport(teleportDelay));
+            }
+            else
+            {
+                Debug.Log("🔄 Мгновенная телепортация");
+                TeleportToSurface();
+            }
         }
+        else if (IsPlayer(other) && isTeleporting)
+        {
+            Debug.Log("🔄 Игрок уже в процессе телепортации, пропускаем");
+        }
+    }
+
+    private IEnumerator DelayedTeleport(float delay)
+    {
+        isTeleporting = true;
+        yield return new WaitForSeconds(delay);
+        TeleportToSurface();
     }
 
     private void OnTriggerExit(Collider other)
@@ -70,6 +111,7 @@ public class TeleportZone : MonoBehaviour
             isPlayerNearby = false;
             isHolding = false;
             holdProgress = 0f;
+            isTeleporting = false; // Сбрасываем флаг при выходе
             UpdateVisualFeedback();
             Debug.Log("🔄 Игрок отошел от зоны возврата.");
         }
@@ -77,22 +119,20 @@ public class TeleportZone : MonoBehaviour
 
     public void StartHold()
     {
-        if (!isHolding)
-        {
-            isHolding = true;
-            holdProgress = 0f;
-            Debug.Log("🔄 Начало зажатия кнопки для возврата...");
-        }
+        // Игнорируем зажатие клавиши - телепортация теперь автоматическая при входе в триггер
+        // Оставляем метод для совместимости, но он больше не используется
+        Debug.Log("ℹ TeleportZone: StartHold() вызван, но игнорируется. Телепортация происходит автоматически при входе в триггер.");
     }
 
     public void StopHold()
     {
+        // Игнорируем остановку зажатия - телепортация теперь автоматическая при входе в триггер
+        // Оставляем метод для совместимости, но он больше не используется
         if (isHolding)
         {
             isHolding = false;
             holdProgress = 0f;
             UpdateVisualFeedback();
-            Debug.Log("🔄 Зажатие кнопки прервано.");
         }
     }
 
@@ -152,6 +192,7 @@ public class TeleportZone : MonoBehaviour
         // Сбрасываем состояние
         isHolding = false;
         holdProgress = 0f;
+        isTeleporting = false;
         UpdateVisualFeedback();
 
         // Уведомляем PlayerInteraction о завершении
