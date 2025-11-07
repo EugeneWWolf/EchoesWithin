@@ -7,6 +7,7 @@ public class TeleportZone : MonoBehaviour
     [SerializeField] private Transform returnSpawnPoint;
     [SerializeField] private float holdTime = 3f; // Больше не используется, оставлено для совместимости
     [SerializeField] private float teleportDelay = 0.5f; // Задержка перед телепортацией при входе в триггер
+    [SerializeField] private float teleportCooldown = 2f; // Кулдаун после телепортации (в секундах)
     [SerializeField] private LayerMask playerLayer = 1; // Default layer
 
     [Header("Visual Feedback")]
@@ -55,7 +56,10 @@ public class TeleportZone : MonoBehaviour
             originalMaterial = zoneRenderer.material;
         }
 
-        Debug.Log($"✅ TeleportZone инициализирован. Задержка телепортации: {teleportDelay} секунд");
+        // Устанавливаем кулдаун в общий менеджер
+        TeleportCooldownManager.SetCooldown(teleportCooldown);
+
+        Debug.Log($"✅ TeleportZone инициализирован. Задержка телепортации: {teleportDelay} секунд, кулдаун: {teleportCooldown} секунд");
     }
 
     private void Update()
@@ -76,6 +80,14 @@ public class TeleportZone : MonoBehaviour
     {
         if (IsPlayer(other) && !isTeleporting)
         {
+            // Проверяем кулдаун через общий менеджер
+            if (!TeleportCooldownManager.CanTeleport())
+            {
+                float remainingCooldown = TeleportCooldownManager.GetRemainingCooldown();
+                Debug.Log($"⏳ TeleportZone: Кулдаун активен. Осталось {remainingCooldown:F1} секунд");
+                return;
+            }
+
             isPlayerNearby = true;
             Debug.Log("🔄 Игрок вошел в зону возврата. Начинаем возврат на поверхность...");
 
@@ -194,6 +206,10 @@ public class TeleportZone : MonoBehaviour
         holdProgress = 0f;
         isTeleporting = false;
         UpdateVisualFeedback();
+
+        // Регистрируем телепортацию в общем менеджере кулдауна
+        TeleportCooldownManager.RegisterTeleport();
+        Debug.Log($"⏳ TeleportZone: Кулдаун установлен на {teleportCooldown} секунд");
 
         // Уведомляем PlayerInteraction о завершении
         if (playerController != null)
