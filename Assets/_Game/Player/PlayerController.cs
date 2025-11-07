@@ -13,6 +13,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private InventoryUI inventoryUI;
     [SerializeField] private PlayerWallet wallet;
     [SerializeField] private MoneyUI moneyUI;
+    [SerializeField] private GoalUI goalUI;
 
     [Header("Player Stats")]
     [SerializeField] private PlayerStats playerStats;
@@ -147,6 +148,22 @@ public class PlayerController : MonoBehaviour
             moneyUI.BindWallet(wallet);
         else if (moneyUI != null)
             Debug.LogWarning("⚠ MoneyUI назначен, но PlayerWallet не найден!");
+
+        // привязка Goal UI к кошельку
+        if (goalUI != null && wallet != null)
+        {
+            goalUI.BindWallet(wallet);
+        }
+        else
+        {
+            // Автоматически ищем GoalUI в сцене
+            goalUI = FindObjectOfType<GoalUI>();
+            if (goalUI != null && wallet != null)
+            {
+                goalUI.BindWallet(wallet);
+                Debug.Log("✅ GoalUI автоматически найден и привязан");
+            }
+        }
 
         // курсор
         Cursor.lockState = CursorLockMode.Locked;

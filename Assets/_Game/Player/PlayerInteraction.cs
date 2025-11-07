@@ -90,6 +90,15 @@ public class PlayerInteraction
                 Debug.Log($"🔍 Используем прямой объект: {targetItem.name}");
             }
 
+            // Проверяем, является ли объект ракетой для выхода
+            RocketExit rocketExit = targetItem.GetComponent<RocketExit>();
+            if (rocketExit != null)
+            {
+                Debug.Log("🚀 Взаимодействие с ракетой для выхода!");
+                rocketExit.TryExit();
+                return; // Не подбираем ракету!
+            }
+
             // Проверяем, является ли объект телепорт-дверью
             TeleportDoor teleportDoor = targetItem.GetComponent<TeleportDoor>();
             if (teleportDoor != null)
@@ -105,9 +114,10 @@ public class PlayerInteraction
             }
             else
             {
-                // Проверяем, что объект можно подобрать (не телепорт-дверь и не зона телепортации)
+                // Проверяем, что объект можно подобрать (не телепорт-дверь, не зона телепортации, не ракета)
                 if (targetItem.GetComponent<TeleportDoor>() == null &&
                     targetItem.GetComponent<TeleportZone>() == null &&
+                    targetItem.GetComponent<RocketExit>() == null &&
                     targetItem.activeInHierarchy) // Предмет должен быть активен
                 {
                     // Проверяем, что у объекта есть компонент Item
