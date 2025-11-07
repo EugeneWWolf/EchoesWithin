@@ -23,10 +23,11 @@ public class PlayerController : MonoBehaviour
 
     [Header("UI")]
     [SerializeField] private PlayerHealthUI healthUI;
+    [SerializeField] private DeathScreenUI deathScreenUI;
 
     [Header("Respawn Settings")]
     [SerializeField] private Vector3 respawnPosition = Vector3.zero;
-    [SerializeField] private float respawnDelay = 2f;
+    [SerializeField] private float respawnDelay = 3f; // По умолчанию 3 секунды
     [SerializeField] private bool useInitialPositionAsRespawn = true;
 
     [Header("Damage Visual Effects")]
@@ -103,6 +104,17 @@ public class PlayerController : MonoBehaviour
             {
                 healthUI.BindPlayer(this);
                 Debug.Log("✅ PlayerHealthUI автоматически найден и привязан");
+            }
+        }
+
+        // Привязываем Death Screen UI
+        if (deathScreenUI == null)
+        {
+            // Автоматически ищем Death Screen UI в сцене
+            deathScreenUI = FindObjectOfType<DeathScreenUI>();
+            if (deathScreenUI != null)
+            {
+                Debug.Log("✅ DeathScreenUI автоматически найден и привязан");
             }
         }
 
@@ -186,12 +198,29 @@ public class PlayerController : MonoBehaviour
     }
 
     // === INPUT SYSTEM CALLBACKS ===
-    public void OnMove(InputValue value) => movement.SetMoveInput(value.Get<Vector2>());
-    public void OnJump(InputValue value) => movement.TryJump(value.isPressed);
-    public void OnLook(InputValue value) => cameraController.SetLookInput(value.Get<Vector2>());
-    public void OnInteract() => interaction.TryInteract();
+    public void OnMove(InputValue value)
+    {
+        if (isDead) return; // Блокируем движение при смерти
+        movement.SetMoveInput(value.Get<Vector2>());
+    }
+    public void OnJump(InputValue value)
+    {
+        if (isDead) return; // Блокируем прыжок при смерти
+        movement.TryJump(value.isPressed);
+    }
+    public void OnLook(InputValue value)
+    {
+        if (isDead) return; // Блокируем вращение камеры при смерти
+        cameraController.SetLookInput(value.Get<Vector2>());
+    }
+    public void OnInteract()
+    {
+        if (isDead) return; // Блокируем взаимодействие при смерти
+        interaction.TryInteract();
+    }
     public void OnInteractHold(InputValue value)
     {
+        if (isDead) return; // Блокируем взаимодействие при смерти
         if (value.isPressed)
             interaction.StartHoldInteract();
         else
@@ -199,16 +228,26 @@ public class PlayerController : MonoBehaviour
     }
     public void OnResetStats(InputValue value)
     {
+        if (isDead) return; // Блокируем сброс статов при смерти
         if (value.isPressed)
             ResetStatsToDefaults();
     }
     public void OnAttack(InputValue value)
     {
+        if (isDead) return; // Блокируем атаку при смерти
         if (value.isPressed && combat != null)
             combat.TryAttack();
     }
-    public void OnDrop() => interaction.TryDrop();
-    public void OnSell() => interaction.TrySell();
+    public void OnDrop()
+    {
+        if (isDead) return; // Блокируем выброс при смерти
+        interaction.TryDrop();
+    }
+    public void OnSell()
+    {
+        if (isDead) return; // Блокируем продажу при смерти
+        interaction.TrySell();
+    }
     public void OnInventory1() => SetActiveInventorySlot(0);
     public void OnInventory2() => SetActiveInventorySlot(1);
     public void OnInventory3() => SetActiveInventorySlot(2);
@@ -382,7 +421,17 @@ public class PlayerController : MonoBehaviour
         isDead = true;
         currentHealth = 0;
 
+        // Останавливаем движение и вращение камеры
+        movement.SetMoveInput(Vector2.zero);
+        cameraController.SetLookInput(Vector2.zero);
+
         Debug.Log("💀 Игрок умер! Game Over!");
+
+        // Показываем экран смерти
+        if (deathScreenUI != null)
+        {
+            deathScreenUI.ShowDeathScreen();
+        }
 
         // Запускаем респавн через некоторое время
         StartCoroutine(RespawnCoroutine());
@@ -393,7 +442,20 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     private IEnumerator RespawnCoroutine()
     {
-        yield return new WaitForSeconds(respawnDelay);
+        // Используем длительность из DeathScreenUI, если доступна, иначе respawnDelay
+        float delay = respawnDelay;
+        if (deathScreenUI != null)
+        {
+            delay = deathScreenUI.GetDisplayDuration();
+        }
+
+        yield return new WaitForSeconds(delay);
+
+        // Скрываем экран смерти перед респавном
+        if (deathScreenUI != null)
+        {
+            deathScreenUI.HideDeathScreen();
+        }
 
         Respawn();
     }
