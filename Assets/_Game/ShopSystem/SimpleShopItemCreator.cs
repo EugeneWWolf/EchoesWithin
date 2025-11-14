@@ -178,4 +178,133 @@ public class SimpleShopItemCreator : MonoBehaviour
     {
         CreateItemsFromPrefabs();
     }
+
+    /// <summary>
+    /// Создает случайный предмет для замены купленного
+    /// </summary>
+    public GameObject CreateRandomItem(Vector3 position)
+    {
+        if (itemPrefabs == null || itemPrefabs.Length == 0)
+        {
+            Debug.LogWarning("⚠ SimpleShopItemCreator: Нет префабов для создания предметов!");
+            return null;
+        }
+
+        GameObject randomPrefab;
+        ShopItemData randomData;
+
+        // Если есть данные о предметах, используем их для выбора префаба и создания данных
+        if (itemData != null && itemData.Length > 0 && itemData.Length == itemPrefabs.Length)
+        {
+            // Выбираем случайный индекс, чтобы префаб и данные соответствовали
+            int randomIndex = Random.Range(0, itemData.Length);
+            randomPrefab = itemPrefabs[randomIndex];
+            randomData = CreateRandomItemDataFromBase(itemData[randomIndex]);
+        }
+        else
+        {
+            // Если данных нет или они не совпадают, выбираем случайный префаб и создаем полностью случайные данные
+            randomPrefab = itemPrefabs[Random.Range(0, itemPrefabs.Length)];
+            randomData = CreateRandomItemData();
+        }
+
+        if (randomPrefab == null)
+        {
+            Debug.LogWarning("⚠ SimpleShopItemCreator: Выбранный префаб равен null!");
+            return null;
+        }
+
+        // Создаем предмет
+        GameObject item = Instantiate(randomPrefab);
+        SetupItem(item, randomData);
+
+        // Устанавливаем позицию
+        item.transform.position = position;
+
+        Debug.Log($"✅ SimpleShopItemCreator: Создан случайный предмет: {randomData.itemName} в позиции {position}");
+        return item;
+    }
+
+    /// <summary>
+    /// Создает случайные данные для предмета на основе базовых данных
+    /// </summary>
+    private ShopItemData CreateRandomItemDataFromBase(ShopItemData baseData)
+    {
+        ItemType randomType = baseData.type;
+        StatType randomStatType = baseData.statType;
+
+        // Немного рандомизируем значения
+        float randomStatValue = baseData.statValue * Random.Range(0.8f, 1.2f);
+        int randomPrice = Mathf.RoundToInt(baseData.price * Random.Range(0.7f, 1.3f));
+        string randomName = baseData.itemName;
+        string randomDescription = baseData.description;
+
+        // Для BuffItem рандомизируем тип стата
+        if (randomType == ItemType.BuffItem)
+        {
+            StatType[] buffStats = { StatType.Speed, StatType.JumpHeight };
+            randomStatType = buffStats[Random.Range(0, buffStats.Length)];
+            // Обновляем название и описание для зелья
+            string statName = randomStatType == StatType.Speed ? "Speed" : "Jump";
+            randomName = $"{statName} Potion (+{randomStatValue:F1})";
+            randomDescription = $"Зелье, увеличивающее {statName.ToLower()} на {randomStatValue:F1}";
+        }
+
+        return new ShopItemData
+        {
+            itemName = randomName,
+            price = randomPrice,
+            type = randomType,
+            statType = randomStatType,
+            statValue = randomStatValue,
+            description = randomDescription
+        };
+    }
+
+    /// <summary>
+    /// Создает полностью случайные данные для предмета (когда нет базовых данных)
+    /// </summary>
+    private ShopItemData CreateRandomItemData()
+    {
+        // Создаем полностью случайные данные
+        ItemType[] types = { ItemType.SellableItem, ItemType.BuffItem, ItemType.Weapon };
+        ItemType randomType = types[Random.Range(0, types.Length)];
+
+        StatType randomStatType;
+        float randomStatValue;
+        int randomPrice;
+        string randomName;
+        string randomDescription;
+
+        // Для BuffItem рандомизируем тип стата
+        if (randomType == ItemType.BuffItem)
+        {
+            StatType[] buffStats = { StatType.Speed, StatType.JumpHeight };
+            randomStatType = buffStats[Random.Range(0, buffStats.Length)];
+            randomStatValue = Random.Range(1f, 10f);
+            string statName = randomStatType == StatType.Speed ? "Speed" : "Jump";
+            randomName = $"{statName} Potion (+{randomStatValue:F1})";
+            randomDescription = $"Зелье, увеличивающее {statName.ToLower()} на {randomStatValue:F1}";
+        }
+        else
+        {
+            StatType[] statTypes = { StatType.Speed, StatType.JumpHeight, StatType.Damage, StatType.Health };
+            randomStatType = statTypes[Random.Range(0, statTypes.Length)];
+            randomStatValue = Random.Range(1f, 10f);
+            randomName = $"Random {randomType}";
+            randomDescription = $"Случайный предмет типа {randomType}";
+        }
+
+        randomPrice = Random.Range(10, 100);
+
+        return new ShopItemData
+        {
+            itemName = randomName,
+            price = randomPrice,
+            type = randomType,
+            statType = randomStatType,
+            statValue = randomStatValue,
+            description = randomDescription
+        };
+    }
 }

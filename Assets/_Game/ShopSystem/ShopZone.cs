@@ -187,4 +187,105 @@ public class ShopZone : MonoBehaviour
             }
         }
     }
+
+    /// <summary>
+    /// Респавнит предмет в указанном слоте после покупки
+    /// </summary>
+    public void RespawnItemAtSlot(int slotIndex)
+    {
+        if (shopItems == null || slotIndex < 0 || slotIndex >= shopItems.Length)
+        {
+            Debug.LogWarning($"⚠ ShopZone: Некорректный индекс слота для респавна: {slotIndex}");
+            return;
+        }
+
+        // Получаем позицию, где должен быть предмет
+        float spacing = 2f;
+        Vector3 startPosition = transform.position + Vector3.right * (-shopItems.Length * spacing * 0.5f);
+        Vector3 itemPosition = startPosition + Vector3.right * (slotIndex * spacing);
+
+        // Уничтожаем старый предмет если он еще существует и не находится в инвентаре
+        // (оружие может быть в инвентаре игрока, его не нужно уничтожать)
+        if (shopItems[slotIndex] != null)
+        {
+            GameObject oldItem = shopItems[slotIndex];
+            // Проверяем, не является ли предмет оружием в инвентаре (неактивным)
+            // Если предмет неактивен и это оружие, значит оно в инвентаре - не уничтожаем
+            bool isWeaponInInventory = !oldItem.activeInHierarchy && oldItem.GetComponent<Weapon>() != null;
+
+            if (!isWeaponInInventory)
+            {
+                Object.Destroy(oldItem);
+            }
+            else
+            {
+                Debug.Log($"ℹ ShopZone: Предмет в слоте {slotIndex} - оружие в инвентаре, не уничтожаем");
+            }
+        }
+
+        // Пытаемся получить SimpleShopItemCreator для создания нового предмета
+        SimpleShopItemCreator itemCreator = GetComponent<SimpleShopItemCreator>();
+        if (itemCreator != null)
+        {
+            GameObject newItem = itemCreator.CreateRandomItem(itemPosition);
+            if (newItem != null)
+            {
+                shopItems[slotIndex] = newItem;
+                newItem.SetActive(true);
+
+                // Добавляем коллайдер если его нет
+                if (!newItem.GetComponent<Collider>())
+                {
+                    var collider = newItem.AddComponent<BoxCollider>();
+                    collider.isTrigger = true;
+                }
+
+                // Устанавливаем слой для взаимодействия
+                int interactableLayer = LayerMask.NameToLayer("Interactable");
+                if (interactableLayer != -1)
+                {
+                    newItem.layer = interactableLayer;
+                }
+
+                // Добавляем отображение цены если его нет
+                ItemPriceDisplay priceDisplay = newItem.GetComponent<ItemPriceDisplay>();
+                if (priceDisplay == null)
+                {
+                    priceDisplay = newItem.AddComponent<ItemPriceDisplay>();
+                }
+                priceDisplay.SetShopZone(this);
+
+                Debug.Log($"✅ ShopZone: Респавнен предмет в слоте {slotIndex}: {newItem.name}");
+            }
+            else
+            {
+                Debug.LogWarning($"⚠ ShopZone: Не удалось создать новый предмет для слота {slotIndex}");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"⚠ ShopZone: Не найден SimpleShopItemCreator для респавна предмета в слоте {slotIndex}");
+        }
+    }
+
+    /// <summary>
+    /// Находит индекс предмета в массиве shopItems
+    /// </summary>
+    public int GetItemSlotIndex(GameObject item)
+    {
+        if (shopItems == null || item == null)
+        {
+            return -1;
+        }
+
+        for (int i = 0; i < shopItems.Length; i++)
+        {
+            if (shopItems[i] == item)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
 }
