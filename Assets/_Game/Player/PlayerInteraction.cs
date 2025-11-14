@@ -468,6 +468,12 @@ public class PlayerInteraction
             wallet.Add(payout);
             Object.Destroy(soldObj);
             Debug.Log($"💰 Продано: {itemData.name} за {payout}. Баланс: {wallet.Balance}");
+
+            // Проигрываем звук продажи
+            if (playerController != null)
+            {
+                playerController.PlaySellItemSound();
+            }
         }
     }
 

@@ -35853,6 +35853,10 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 330585546}
     - target: {fileID: 2096427175644199687, guid: c64c43a199140af4a8c26cf6e2f9e161, type: 3}
+      propertyPath: sellItemSound
+      value: 
+      objectReference: {fileID: 8300000, guid: 5f9d6d7090eebc1449692a70d92c5934, type: 3}
+    - target: {fileID: 2096427175644199687, guid: c64c43a199140af4a8c26cf6e2f9e161, type: 3}
       propertyPath: emptySlotSprite
       value: 
       objectReference: {fileID: 10907, guid: 0000000000000000f000000000000000, type: 0}

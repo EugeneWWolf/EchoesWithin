@@ -41,6 +41,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private AudioClip buffItemPickupSound;
     [SerializeField] private AudioClip sellableItemPickupSound;
     [SerializeField] private AudioClip playerTakeDamageSound;
+    [SerializeField] private AudioClip sellItemSound;
 
     private CharacterController controller;
     private float currentHealth;
@@ -609,6 +610,17 @@ public class PlayerController : MonoBehaviour
         if (audioSource != null && playerTakeDamageSound != null)
         {
             audioSource.PlayOneShot(playerTakeDamageSound);
+        }
+    }
+
+    /// <summary>
+    /// Проигрывание звука продажи предмета
+    /// </summary>
+    public void PlaySellItemSound()
+    {
+        if (audioSource != null && sellItemSound != null)
+        {
+            audioSource.PlayOneShot(sellItemSound);
         }
     }
 }
