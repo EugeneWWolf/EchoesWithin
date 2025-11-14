@@ -131,6 +131,14 @@ public class TeleportDoor : MonoBehaviour
     {
         if (IsPlayer(other) && !isTeleporting)
         {
+            // Проверяем, что игрок находится на поверхности (Y >= 0)
+            // Это предотвращает телепортацию, когда игрок под землей
+            if (playerController != null && playerController.transform.position.y < 0)
+            {
+                Debug.Log($"🚪 TeleportDoor: Игрок под землей (Y={playerController.transform.position.y:F2}), телепортация не выполняется");
+                return;
+            }
+
             // Проверяем кулдаун через общий менеджер
             if (!TeleportCooldownManager.CanTeleport())
             {
@@ -164,6 +172,15 @@ public class TeleportDoor : MonoBehaviour
     {
         isTeleporting = true;
         yield return new WaitForSeconds(delay);
+
+        // Проверяем еще раз, что игрок все еще на поверхности перед телепортацией
+        if (playerController != null && playerController.transform.position.y < 0)
+        {
+            Debug.Log($"🚪 TeleportDoor: Игрок спустился под землю во время задержки (Y={playerController.transform.position.y:F2}), телепортация отменена");
+            isTeleporting = false;
+            yield break;
+        }
+
         TeleportToDungeon();
     }
 

@@ -80,6 +80,14 @@ public class TeleportZone : MonoBehaviour
     {
         if (IsPlayer(other) && !isTeleporting)
         {
+            // Проверяем, что игрок находится под землей (Y < 0)
+            // Это предотвращает телепортацию, когда игрок на поверхности
+            if (playerController != null && playerController.transform.position.y >= 0)
+            {
+                Debug.Log($"🔄 TeleportZone: Игрок на поверхности (Y={playerController.transform.position.y:F2}), телепортация не выполняется");
+                return;
+            }
+
             // Проверяем кулдаун через общий менеджер
             if (!TeleportCooldownManager.CanTeleport())
             {
@@ -113,6 +121,15 @@ public class TeleportZone : MonoBehaviour
     {
         isTeleporting = true;
         yield return new WaitForSeconds(delay);
+
+        // Проверяем еще раз, что игрок все еще под землей перед телепортацией
+        if (playerController != null && playerController.transform.position.y >= 0)
+        {
+            Debug.Log($"🔄 TeleportZone: Игрок поднялся на поверхность во время задержки (Y={playerController.transform.position.y:F2}), телепортация отменена");
+            isTeleporting = false;
+            yield break;
+        }
+
         TeleportToSurface();
     }
 
