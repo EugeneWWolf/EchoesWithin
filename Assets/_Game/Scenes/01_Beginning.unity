@@ -23125,6 +23125,8 @@ MonoBehaviour:
   attackHeight: 2
   attackEffectPrefab: {fileID: 0}
   attackPoint: {fileID: 330585546}
+  audioSource: {fileID: 0}
+  attackSound: {fileID: 8300000, guid: 3b134311538f9cf459fe07db79bd1701, type: 3}
 --- !u!1 &1409661334
 GameObject:
   m_ObjectHideFlags: 0
@@ -35871,13 +35873,29 @@ PrefabInstance:
       value: 20
       objectReference: {fileID: 0}
     - target: {fileID: 2096427175644199687, guid: c64c43a199140af4a8c26cf6e2f9e161, type: 3}
+      propertyPath: weaponPickupSound
+      value: 
+      objectReference: {fileID: 8300000, guid: f17bac10ee4c44148a1e9088e7540c55, type: 3}
+    - target: {fileID: 2096427175644199687, guid: c64c43a199140af4a8c26cf6e2f9e161, type: 3}
       propertyPath: pickupLayer.m_Bits
       value: 8
       objectReference: {fileID: 0}
     - target: {fileID: 2096427175644199687, guid: c64c43a199140af4a8c26cf6e2f9e161, type: 3}
+      propertyPath: buffItemPickupSound
+      value: 
+      objectReference: {fileID: 8300000, guid: 4d24975329921423b9c49a8807c8f508, type: 3}
+    - target: {fileID: 2096427175644199687, guid: c64c43a199140af4a8c26cf6e2f9e161, type: 3}
       propertyPath: interactLayer.m_Bits
       value: 8
       objectReference: {fileID: 0}
+    - target: {fileID: 2096427175644199687, guid: c64c43a199140af4a8c26cf6e2f9e161, type: 3}
+      propertyPath: playerTakeDamageSound
+      value: 
+      objectReference: {fileID: 8300000, guid: 36b9770e01bdae34ab5218917b9176cc, type: 3}
+    - target: {fileID: 2096427175644199687, guid: c64c43a199140af4a8c26cf6e2f9e161, type: 3}
+      propertyPath: sellableItemPickupSound
+      value: 
+      objectReference: {fileID: 8300000, guid: 4bc21899eae7448ccaf4ebdd49cfcd9f, type: 3}
     - target: {fileID: 2096427175644199687, guid: c64c43a199140af4a8c26cf6e2f9e161, type: 3}
       propertyPath: 'inventorySlots.Array.data[0]'
       value: 

@@ -17,6 +17,10 @@ public class PlayerCombat : MonoBehaviour
     [SerializeField] private GameObject attackEffectPrefab;
     [SerializeField] private Transform attackPoint;
 
+    [Header("Audio")]
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioClip attackSound;
+
     private float lastAttackTime;
     private PlayerStats playerStats;
     private PlayerController playerController;
@@ -38,6 +42,18 @@ public class PlayerCombat : MonoBehaviour
         if (attackPoint == null)
         {
             attackPoint = transform;
+        }
+
+        // Инициализируем AudioSource если не назначен
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
+                audioSource.playOnAwake = false;
+                audioSource.spatialBlend = 0f; // 2D звук
+            }
         }
 
         Debug.Log("⚔️ PlayerCombat инициализирован");
@@ -66,6 +82,9 @@ public class PlayerCombat : MonoBehaviour
     /// </summary>
     private void PerformAttack()
     {
+        // Проигрываем звук атаки
+        PlayAttackSound();
+
         // Получаем урон из статов
         float damage = GetPlayerDamage();
 
@@ -242,5 +261,16 @@ public class PlayerCombat : MonoBehaviour
         }
 
         RefreshDamage();
+    }
+
+    /// <summary>
+    /// Проигрывание звука атаки
+    /// </summary>
+    private void PlayAttackSound()
+    {
+        if (audioSource != null && attackSound != null)
+        {
+            audioSource.PlayOneShot(attackSound);
+        }
     }
 }

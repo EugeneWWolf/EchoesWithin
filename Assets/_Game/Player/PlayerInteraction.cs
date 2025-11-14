@@ -147,6 +147,12 @@ public class PlayerInteraction
                         // Уничтожаем BuffItem после применения (он одноразовый)
                         Object.Destroy(targetItem);
                         Debug.Log($"✅ Подобран и применен бонус: {targetItem.name} (предмет уничтожен)");
+
+                        // Проигрываем звук подбора бафф-предмета
+                        if (playerController != null)
+                        {
+                            playerController.PlayBuffItemPickupSound();
+                        }
                     }
                     else
                     {
@@ -166,10 +172,22 @@ public class PlayerInteraction
                                     playerController.combat.OnBuffApplied();
                                 }
                                 Debug.Log($"✅ Подобрано и экипировано оружие: {targetItem.name}");
+
+                                // Проигрываем звук подбора оружия
+                                if (playerController != null)
+                                {
+                                    playerController.PlayWeaponPickupSound();
+                                }
                             }
                             else
                             {
                                 Debug.Log("✅ Подобрал " + targetItem.name);
+
+                                // Проигрываем звук подбора обычного предмета
+                                if (playerController != null)
+                                {
+                                    playerController.PlaySellableItemPickupSound();
+                                }
                             }
 
                             targetItem.SetActive(false);
@@ -534,6 +552,12 @@ public class PlayerInteraction
             // Деактивируем BuffItem после применения
             itemObject.SetActive(false);
             Debug.Log($"✅ Куплен и применен бонус: {itemName} за {purchasePrice}");
+
+            // Проигрываем звук подбора бафф-предмета
+            if (playerController != null)
+            {
+                playerController.PlayBuffItemPickupSound();
+            }
         }
         else if (itemObject.TryGetComponent<Weapon>(out var weapon))
         {
@@ -556,6 +580,12 @@ public class PlayerInteraction
                 }
 
                 Debug.Log($"✅ Куплено и экипировано оружие: {itemName} за {purchasePrice}");
+
+                // Проигрываем звук подбора оружия
+                if (playerController != null)
+                {
+                    playerController.PlayWeaponPickupSound();
+                }
             }
             else
             {
@@ -578,6 +608,12 @@ public class PlayerInteraction
 
                 itemObject.SetActive(false);
                 Debug.Log($"✅ Куплен предмет: {itemName} за {purchasePrice}");
+
+                // Проигрываем звук подбора обычного предмета
+                if (playerController != null)
+                {
+                    playerController.PlaySellableItemPickupSound();
+                }
             }
             else
             {

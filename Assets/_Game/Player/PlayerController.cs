@@ -35,6 +35,13 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float damageEffectDuration = 0.2f;
     [SerializeField] private Color damageEffectColor = new Color(1f, 0f, 0f, 0.3f); // Красный полупрозрачный
 
+    [Header("Audio")]
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioClip weaponPickupSound;
+    [SerializeField] private AudioClip buffItemPickupSound;
+    [SerializeField] private AudioClip sellableItemPickupSound;
+    [SerializeField] private AudioClip playerTakeDamageSound;
+
     private CharacterController controller;
     private float currentHealth;
     private bool isDead = false;
@@ -90,6 +97,18 @@ public class PlayerController : MonoBehaviour
 
         // Получаем рендереры для визуального эффекта урона
         playerRenderers = GetComponentsInChildren<Renderer>();
+
+        // Инициализируем AudioSource
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
+                audioSource.playOnAwake = false;
+                audioSource.spatialBlend = 0f; // 2D звук
+            }
+        }
 
         // Привязываем Health UI
         if (healthUI != null)
@@ -374,6 +393,9 @@ public class PlayerController : MonoBehaviour
 
         Debug.Log($"💥 Игрок получил {damageAmount} урона. Здоровье: {currentHealth}/{playerStats.currentHealth}");
 
+        // Звук получения урона
+        PlayTakeDamageSound();
+
         // Визуальный эффект урона
         if (enableDamageEffect)
         {
@@ -542,5 +564,51 @@ public class PlayerController : MonoBehaviour
         // Метод 2: Эффект экрана (красный оттенок) через изменение цвета камеры
         // Это можно улучшить, добавив специальный материал для эффекта урона
         // Пока используем простой метод с рендерерами
+    }
+
+    // === МЕТОДЫ ДЛЯ ПРОИГРЫВАНИЯ ЗВУКОВ ===
+
+    /// <summary>
+    /// Проигрывание звука подбора оружия
+    /// </summary>
+    public void PlayWeaponPickupSound()
+    {
+        if (audioSource != null && weaponPickupSound != null)
+        {
+            audioSource.PlayOneShot(weaponPickupSound);
+        }
+    }
+
+    /// <summary>
+    /// Проигрывание звука подбора бафф-предмета
+    /// </summary>
+    public void PlayBuffItemPickupSound()
+    {
+        if (audioSource != null && buffItemPickupSound != null)
+        {
+            audioSource.PlayOneShot(buffItemPickupSound);
+        }
+    }
+
+    /// <summary>
+    /// Проигрывание звука подбора обычного предмета
+    /// </summary>
+    public void PlaySellableItemPickupSound()
+    {
+        if (audioSource != null && sellableItemPickupSound != null)
+        {
+            audioSource.PlayOneShot(sellableItemPickupSound);
+        }
+    }
+
+    /// <summary>
+    /// Проигрывание звука получения урона
+    /// </summary>
+    public void PlayTakeDamageSound()
+    {
+        if (audioSource != null && playerTakeDamageSound != null)
+        {
+            audioSource.PlayOneShot(playerTakeDamageSound);
+        }
     }
 }
