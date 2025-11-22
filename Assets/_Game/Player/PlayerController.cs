@@ -69,6 +69,15 @@ public class PlayerController : MonoBehaviour
             playerStats = ScriptableObject.CreateInstance<PlayerStats>();
             Debug.LogWarning("⚠ PlayerStats не назначен — создан дефолтный экземпляр!");
         }
+
+        // Сбрасываем все модификаторы статов к 0 при старте игры
+        // Это необходимо, так как ScriptableObject сохраняет значения между сессиями
+        playerStats.speedModifier = 0f;
+        playerStats.jumpModifier = 0f;
+        playerStats.gravityModifier = 0f;
+        playerStats.damageModifier = 0f;
+        playerStats.healthModifier = 0f;
+
         playerStats.RecalculateStats();
 
         // Инициализируем здоровье
@@ -457,6 +466,10 @@ public class PlayerController : MonoBehaviour
                 weapon.RemoveWeaponStats(playerStats);
             }
         }
+
+        // Сбрасываем все модификаторы статов (от бафф-предметов и оружия)
+        // Это вернет статы к базовым (изначальным) значениям
+        ResetModifiersOnly();
 
         // Очищаем инвентарь (игрок теряет все предметы)
         inventory.Clear();
