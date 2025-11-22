@@ -1,11 +1,11 @@
-using UnityEngine;
+п»їusing UnityEngine;
 
 public class InventorySystem
 {
     private readonly GameObject[] slots;
     private int activeSlot = 0;
 
-    // Кэш для оптимизации
+    // пїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     private bool needsUIUpdate = false;
     public bool NeedsUIUpdate => needsUIUpdate;
     public int LastChangedIndex { get; private set; } = -1;
@@ -24,7 +24,7 @@ public class InventorySystem
 
     public void SetActiveSlot(int index)
     {
-        if (activeSlot == index) return; // Избегаем ненужных обновлений
+        if (activeSlot == index) return; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 
         activeSlot = index;
         LastChangedIndex = index;
@@ -47,13 +47,27 @@ public class InventorySystem
     public GameObject RemoveActive()
     {
         GameObject obj = slots[activeSlot];
-        if (obj == null) return null; // Избегаем ненужных обновлений
+        if (obj == null) return null; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 
         slots[activeSlot] = null;
         LastChangedIndex = activeSlot;
         needsUIUpdate = true;
         OnInventoryChanged?.Invoke();
         return obj;
+    }
+
+    /// <summary>
+    /// РћС‡РёС‰Р°РµС‚ РІРµСЃСЊ РёРЅРІРµРЅС‚Р°СЂСЊ
+    /// </summary>
+    public void Clear()
+    {
+        for (int i = 0; i < slots.Length; i++)
+        {
+            slots[i] = null;
+        }
+        needsUIUpdate = true;
+        LastChangedIndex = -1;
+        OnInventoryChanged?.Invoke();
     }
 
     public int Size => slots.Length;

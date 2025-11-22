@@ -1,4 +1,4 @@
-using UnityEngine;
+п»їusing UnityEngine;
 using UnityEngine.UI;
 
 public class InventoryUI : MonoBehaviour
@@ -7,8 +7,8 @@ public class InventoryUI : MonoBehaviour
     [SerializeField] private Sprite emptySlotSprite;
 
     private InventorySystem inventory;
-    private Sprite[] cachedSprites; // Кэш спрайтов
-    private bool[] slotDirty; // Флаги для отслеживания изменений
+    private Sprite[] cachedSprites; // пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    private bool[] slotDirty; // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     private int lastActiveSlot = -1;
 
     public void BindInventory(InventorySystem inv)
@@ -16,11 +16,11 @@ public class InventoryUI : MonoBehaviour
         inventory = inv;
         inventory.OnInventoryChanged += OnInventoryChanged;
 
-        // Инициализация кэша
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
         cachedSprites = new Sprite[inventory.Size];
         slotDirty = new bool[inventory.Size];
 
-        // Помечаем все слоты как "грязные" для первоначального обновления
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         for (int i = 0; i < inventory.Size; i++)
         {
             slotDirty[i] = true;
@@ -28,14 +28,14 @@ public class InventoryUI : MonoBehaviour
 
         UpdateUI();
 
-        // Фикс: запоминаем текущий активный слот как "последний"
-        // чтобы при первом переключении корректно очистить подсветку предыдущего
+        // пїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ"
+        // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         lastActiveSlot = inventory.ActiveSlot;
     }
 
     private void OnInventoryChanged()
     {
-        // Помечаем активный слот как "грязный" для обновления цвета
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
         if (lastActiveSlot != inventory.ActiveSlot)
         {
             if (lastActiveSlot >= 0 && lastActiveSlot < inventory.Size)
@@ -46,8 +46,8 @@ public class InventoryUI : MonoBehaviour
         }
         else if (lastActiveSlot == -1)
         {
-            // Фоллбэк: если ранее не было активного слота,
-            // гарантированно обновим цвета всех ячеек один раз
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ,
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ
             for (int i = 0; i < inventory.Size; i++)
             {
                 slotDirty[i] = true;
@@ -55,7 +55,7 @@ public class InventoryUI : MonoBehaviour
             lastActiveSlot = inventory.ActiveSlot;
         }
 
-        // Помечаем изменённую ячейку из модели инвентаря
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         int changed = inventory.LastChangedIndex;
         if (changed >= 0 && changed < inventory.Size)
             slotDirty[changed] = true;
@@ -68,7 +68,7 @@ public class InventoryUI : MonoBehaviour
     {
         for (int i = 0; i < inventory.Size; i++)
         {
-            if (!slotDirty[i]) continue; // Пропускаем неизмененные слоты
+            if (!slotDirty[i]) continue; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
 
             GameObject item = inventory.GetItem(i);
             Sprite newSprite = emptySlotSprite;
@@ -80,17 +80,33 @@ public class InventoryUI : MonoBehaviour
                     newSprite = itemComp.icon;
             }
 
-            // Обновляем только если спрайт изменился
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
             if (cachedSprites[i] != newSprite)
             {
                 cachedSprites[i] = newSprite;
                 slots[i].sprite = newSprite;
             }
 
-            // Обновляем цвет активного слота
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
             slots[i].color = (i == inventory.ActiveSlot) ? Color.softRed : Color.white;
 
-            slotDirty[i] = false; // Помечаем как обновленный
+            slotDirty[i] = false; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         }
+    }
+
+    /// <summary>
+    /// РџСЂРёРЅСѓРґРёС‚РµР»СЊРЅРѕ РѕР±РЅРѕРІР»СЏРµС‚ РІРµСЃСЊ UI РёРЅРІРµРЅС‚Р°СЂСЏ
+    /// </summary>
+    public void RefreshDisplay()
+    {
+        if (inventory == null) return;
+
+        // РџРѕРјРµС‡Р°РµРј РІСЃРµ СЃР»РѕС‚С‹ РєР°Рє РёР·РјРµРЅРµРЅРЅС‹Рµ
+        for (int i = 0; i < inventory.Size; i++)
+        {
+            slotDirty[i] = true;
+        }
+
+        UpdateUI();
     }
 }

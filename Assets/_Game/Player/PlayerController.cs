@@ -448,6 +448,39 @@ public class PlayerController : MonoBehaviour
         movement.SetMoveInput(Vector2.zero);
         cameraController.SetLookInput(Vector2.zero);
 
+        // Удаляем статы оружия перед очисткой инвентаря
+        for (int i = 0; i < inventory.Size; i++)
+        {
+            GameObject item = inventory.GetItem(i);
+            if (item != null && item.TryGetComponent<Weapon>(out var weapon))
+            {
+                weapon.RemoveWeaponStats(playerStats);
+            }
+        }
+
+        // Очищаем инвентарь (игрок теряет все предметы)
+        inventory.Clear();
+        Debug.Log("📦 Все предметы потеряны при смерти!");
+
+        // Принудительно обновляем UI инвентаря
+        if (inventoryUI != null)
+        {
+            inventoryUI.RefreshDisplay();
+        }
+
+        // Обновляем урон в боевой системе после удаления оружия
+        if (combat != null)
+        {
+            combat.RefreshDamage();
+        }
+
+        // Обнуляем деньги (игрок теряет все накопленные деньги)
+        if (wallet != null)
+        {
+            wallet.SetBalance(0);
+            Debug.Log("💰 Все деньги потеряны при смерти!");
+        }
+
         Debug.Log("💀 Игрок умер! Game Over!");
 
         // Показываем экран смерти
