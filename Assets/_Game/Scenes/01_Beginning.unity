@@ -9414,7 +9414,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MoneyUI
   moneyText: {fileID: 1217745985}
-  moneyFormat: "{0} \u0440\u0443\u0431."
+  moneyFormat: '{0}$'
   normalColor: {r: 1, g: 1, b: 1, a: 1}
   lowMoneyColor: {r: 1, g: 0, b: 0, a: 1}
   lowMoneyThreshold: 10
