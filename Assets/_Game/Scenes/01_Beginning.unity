@@ -3169,7 +3169,7 @@ MonoBehaviour:
   returnSpawnPoint: {fileID: 1315365795}
   holdTime: 3
   teleportDelay: 0.5
-  teleportCooldown: 2
+  teleportCooldown: 10
   playerLayer:
     serializedVersion: 2
     m_Bits: 1
@@ -7851,7 +7851,7 @@ MonoBehaviour:
   dungeonSpawnPoint: {fileID: 766981829}
   holdTime: 3
   teleportDelay: 0.5
-  teleportCooldown: 2
+  teleportCooldown: 10
   playerLayer:
     serializedVersion: 2
     m_Bits: 1
