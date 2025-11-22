@@ -31,8 +31,7 @@ public abstract class Enemy : MonoBehaviour
 
     protected virtual void Update()
     {
-        if (isDead) return;
-
+        // Вызываем UpdateEnemy даже если монстр мертв, чтобы обработать респавн
         UpdateEnemy();
     }
 

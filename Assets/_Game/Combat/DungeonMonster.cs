@@ -94,13 +94,14 @@ public class DungeonMonster : Enemy
         }
 
         // Получаем компоненты для скрытия при смерти
-        renderers = GetComponentsInChildren<Renderer>();
-        colliders = GetComponentsInChildren<Collider>();
+        // includeInactive = true, чтобы найти renderers даже в неактивных дочерних объектах
+        renderers = GetComponentsInChildren<Renderer>(true);
+        colliders = GetComponentsInChildren<Collider>(true);
 
         // Если renderers не найдены, пытаемся найти в дочерних объектах
         if (renderers == null || renderers.Length == 0)
         {
-            renderers = GetComponentsInChildren<Renderer>();
+            renderers = GetComponentsInChildren<Renderer>(true);
         }
 
         // Настраиваем NavMeshAgent
@@ -135,11 +136,33 @@ public class DungeonMonster : Enemy
 
     protected override void UpdateEnemy()
     {
-        if (isRespawning) return;
+        if (isRespawning)
+        {
+            // Логируем, если респавн застрял
+            if (Time.frameCount % 120 == 0)
+            {
+                Debug.Log($"⚠ DungeonMonster: isRespawning = true, но респавн не завершился!");
+            }
+            return;
+        }
+
+        // Если монстр мертв, но состояние не Dead, переключаемся на Dead
+        if (isDead && currentState != MonsterState.Dead)
+        {
+            currentState = MonsterState.Dead;
+            Debug.Log($"💀 DungeonMonster: Обнаружен мертвый монстр, переключаю состояние на Dead");
+        }
 
         switch (currentState)
         {
             case MonsterState.Patrolling:
+                // Не патрулируем, если мертвы
+                if (isDead)
+                {
+                    currentState = MonsterState.Dead;
+                    break;
+                }
+
                 if (patrolMode == PatrolMode.UseNodes && patrolNodes.Count > 0)
                 {
                     UpdatePatrolling();
@@ -152,11 +175,31 @@ public class DungeonMonster : Enemy
                 break;
 
             case MonsterState.Chasing:
+                // Не преследуем, если мертвы
+                if (isDead)
+                {
+                    currentState = MonsterState.Dead;
+                    break;
+                }
+
                 UpdateChasing();
                 break;
 
             case MonsterState.Dead:
+                // Логируем каждую секунду для отладки
+                if (Time.frameCount % 60 == 0)
+                {
+                    Debug.Log($"💀 DungeonMonster: UpdateEnemy - Состояние Dead. isDead: {isDead}, Время смерти: {deathTime:F2}, Прошло: {Time.time - deathTime:F1}с, Нужно: {respawnTime}с, isRespawning: {isRespawning}, currentState: {currentState}");
+                }
                 CheckRespawn();
+                break;
+
+            default:
+                // Логируем неизвестное состояние
+                if (Time.frameCount % 120 == 0)
+                {
+                    Debug.LogWarning($"⚠ DungeonMonster: Неизвестное состояние: {currentState}");
+                }
                 break;
         }
     }
@@ -397,13 +440,35 @@ public class DungeonMonster : Enemy
     /// </summary>
     private void MoveToNextWanderPoint()
     {
-        if (wanderPoints.Count == 0 || !agent.isOnNavMesh) return;
+        if (wanderPoints.Count == 0) return;
+
+        if (agent == null || !agent.isOnNavMesh)
+        {
+            if (enableDebugLogs)
+            {
+                Debug.LogWarning("⚠ DungeonMonster: Агент не на NavMesh, невозможно двигаться к точке блуждания");
+            }
+            return;
+        }
 
         // Выбираем следующую случайную точку
         currentWanderPointIndex = Random.Range(0, wanderPoints.Count);
         Vector3 targetPoint = wanderPoints[currentWanderPointIndex];
 
+        // Проверяем, что точка доступна на NavMesh
+        NavMeshHit hit;
+        if (!NavMesh.SamplePosition(targetPoint, out hit, 5f, NavMesh.AllAreas))
+        {
+            if (enableDebugLogs)
+            {
+                Debug.LogWarning($"⚠ DungeonMonster: Точка блуждания {targetPoint} не на NavMesh, пропускаю");
+            }
+            return;
+        }
+
+        targetPoint = hit.position;
         agent.speed = patrolSpeed;
+        agent.isStopped = false;
         agent.SetDestination(targetPoint);
 
         if (enableDebugLogs)
@@ -491,7 +556,7 @@ public class DungeonMonster : Enemy
     {
         if (patrolNodes.Count == 0) return;
 
-        if (!agent.isOnNavMesh)
+        if (agent == null || !agent.isOnNavMesh)
         {
             if (enableDebugLogs)
             {
@@ -791,9 +856,13 @@ public class DungeonMonster : Enemy
 
     protected override void OnDeath()
     {
+        Debug.Log($"💀💀💀 DungeonMonster УМЕР! GameObject: {gameObject.name}, Позиция: {transform.position}");
+
         currentState = MonsterState.Dead;
         deathTime = Time.time;
         isRespawning = false;
+
+        Debug.Log($"💀 DungeonMonster: Установлено состояние Dead. Время смерти: {deathTime}, Респавн через {respawnTime} секунд");
 
         // Останавливаем агента
         if (agent != null)
@@ -815,9 +884,24 @@ public class DungeonMonster : Enemy
     /// </summary>
     private void CheckRespawn()
     {
-        if (Time.time - deathTime >= respawnTime && !isRespawning)
+        float timeSinceDeath = Time.time - deathTime;
+        bool timeCondition = timeSinceDeath >= respawnTime;
+
+        Debug.Log($"👹 DungeonMonster: CheckRespawn вызван. isDead: {isDead}, Время смерти: {deathTime:F2}, Текущее: {Time.time:F2}, Прошло: {timeSinceDeath:F2}с, Нужно: {respawnTime}с, Условие времени: {timeCondition}, isRespawning: {isRespawning}");
+
+        if (isDead && timeCondition && !isRespawning)
         {
+            Debug.Log($"👹 DungeonMonster: УСЛОВИЯ ВЫПОЛНЕНЫ! Запускаю респавн!");
             Respawn();
+        }
+        else
+        {
+            if (!isDead)
+                Debug.Log($"  ❌ isDead = false");
+            if (!timeCondition)
+                Debug.Log($"  ❌ Время не прошло: {timeSinceDeath:F2} < {respawnTime}");
+            if (isRespawning)
+                Debug.Log($"  ❌ Уже респавнится");
         }
     }
 
@@ -826,65 +910,172 @@ public class DungeonMonster : Enemy
     /// </summary>
     private void Respawn()
     {
+        Debug.Log($"👹 DungeonMonster: НАЧАЛО РЕСПАВНА! Позиция: {transform.position}, isDead: {isDead}");
+
         isRespawning = true;
 
         // Восстанавливаем здоровье
         currentHealth = maxHealth;
         isDead = false;
 
-        // Возвращаемся на стартовую позицию
-        transform.position = spawnPosition;
+        Debug.Log($"👹 DungeonMonster: Здоровье восстановлено: {currentHealth}/{maxHealth}, isDead: {isDead}");
 
-        // Показываем монстра
-        SetVisibility(true);
-
-        // Восстанавливаем агента
-        if (agent != null)
+        // Убеждаемся, что GameObject активен перед поиском компонентов
+        if (!gameObject.activeSelf)
         {
-            agent.isStopped = false;
+            gameObject.SetActive(true);
+        }
 
-            // Проверяем, что позиция спавна на NavMesh
-            NavMeshHit hit;
-            if (NavMesh.SamplePosition(spawnPosition, out hit, 5f, NavMesh.AllAreas))
+        // Активируем все дочерние объекты перед поиском компонентов
+        foreach (Transform child in transform)
+        {
+            if (!child.gameObject.activeSelf)
             {
-                agent.Warp(hit.position);
-                transform.position = hit.position;
+                child.gameObject.SetActive(true);
             }
-            else
-            {
-                // Если позиция спавна не на NavMesh, пытаемся найти ближайшую точку
-                agent.Warp(spawnPosition);
-                transform.position = spawnPosition;
+        }
 
-                if (enableDebugLogs)
+        // Переинициализируем renderers и colliders (могут быть null после смерти)
+        // includeInactive = true, чтобы найти renderers даже в неактивных дочерних объектах
+        renderers = GetComponentsInChildren<Renderer>(true);
+        colliders = GetComponentsInChildren<Collider>(true);
+
+        if (enableDebugLogs)
+        {
+            Debug.Log($"👹 DungeonMonster: Респавн. Renderers: {renderers?.Length ?? 0}, Colliders: {colliders?.Length ?? 0}");
+
+            // Детальная информация о найденных компонентах
+            if (renderers != null && renderers.Length > 0)
+            {
+                foreach (var r in renderers)
                 {
-                    Debug.LogWarning($"⚠ DungeonMonster: Позиция спавна не на NavMesh");
+                    if (r != null)
+                    {
+                        Debug.Log($"  - Renderer: {r.GetType().Name} на {r.gameObject.name}, enabled: {r.enabled}, active: {r.gameObject.activeSelf}");
+                    }
+                }
+            }
+
+            if (colliders != null && colliders.Length > 0)
+            {
+                foreach (var c in colliders)
+                {
+                    if (c != null)
+                    {
+                        Debug.Log($"  - Collider: {c.GetType().Name} на {c.gameObject.name}, enabled: {c.enabled}, active: {c.gameObject.activeSelf}");
+                        if (c is MeshCollider mc)
+                        {
+                            Debug.Log($"    MeshCollider mesh: {(mc.sharedMesh != null ? mc.sharedMesh.name : "NULL")}");
+                        }
+                    }
                 }
             }
         }
 
-        // Возвращаемся к патрулированию
-        currentState = MonsterState.Patrolling;
-        isChasing = false;
-        agent.speed = patrolSpeed;
-        agent.stoppingDistance = nodeReachDistance;
-
-        // Начинаем патрулирование в зависимости от режима
-        if (patrolMode == PatrolMode.UseNodes && patrolNodes.Count > 0)
+        // Восстанавливаем агента ПЕРЕД установкой позиции
+        if (agent != null)
         {
-            currentPatrolNodeIndex = 0;
-            MoveToNextNode();
-        }
-        else if (patrolMode == PatrolMode.WanderArea)
-        {
-            if (wanderPoints.Count == 0)
+            // Включаем агента, если он был отключен
+            if (!agent.enabled)
             {
-                GenerateWanderPoints();
+                agent.enabled = true;
             }
-            if (wanderPoints.Count > 0)
+
+            // Останавливаем агента перед перемещением
+            agent.isStopped = true;
+            agent.ResetPath();
+
+            // Проверяем, что позиция спавна на NavMesh и размещаем агента правильно
+            NavMeshHit hit;
+            Vector3 respawnPos = spawnPosition;
+
+            if (NavMesh.SamplePosition(spawnPosition, out hit, 5f, NavMesh.AllAreas))
             {
-                currentWanderPointIndex = 0;
-                MoveToNextWanderPoint();
+                respawnPos = hit.position;
+            }
+            else
+            {
+                // Если позиция спавна не на NavMesh, пытаемся найти ближайшую точку
+                if (NavMesh.FindClosestEdge(spawnPosition, out hit, NavMesh.AllAreas))
+                {
+                    respawnPos = hit.position;
+                }
+
+                if (enableDebugLogs)
+                {
+                    Debug.LogWarning($"⚠ DungeonMonster: Позиция спавна не на NavMesh, используется ближайшая точка: {respawnPos}");
+                }
+            }
+
+            // Используем Warp для правильного размещения на NavMesh
+            agent.Warp(respawnPos);
+            transform.position = respawnPos;
+
+            // Ждем один кадр, чтобы агент правильно разместился на NavMesh
+            // Это важно для правильной работы NavMeshAgent
+        }
+        else
+        {
+            // Если агента нет, просто устанавливаем позицию
+            transform.position = spawnPosition;
+        }
+
+        // Показываем монстра ПОСЛЕ правильного размещения
+        SetVisibility(true);
+
+        // Восстанавливаем настройки агента
+        if (agent != null)
+        {
+            // Проверяем, что агент на NavMesh перед началом движения
+            if (!agent.isOnNavMesh)
+            {
+                if (enableDebugLogs)
+                {
+                    Debug.LogWarning($"⚠ DungeonMonster: Агент не на NavMesh после респавна! Пытаемся восстановить...");
+                }
+                TryPlaceOnNavMesh();
+            }
+
+            // Начинаем движение только если агент на NavMesh
+            if (agent.isOnNavMesh)
+            {
+                agent.isStopped = false;
+                agent.speed = patrolSpeed;
+                agent.stoppingDistance = nodeReachDistance;
+
+                // Возвращаемся к патрулированию
+                currentState = MonsterState.Patrolling;
+                isChasing = false;
+                isWaiting = false;
+                waitTimer = 0f;
+
+                // Начинаем патрулирование в зависимости от режима
+                if (patrolMode == PatrolMode.UseNodes && patrolNodes.Count > 0)
+                {
+                    currentPatrolNodeIndex = 0;
+                    MoveToNextNode();
+                }
+                else if (patrolMode == PatrolMode.WanderArea)
+                {
+                    if (wanderPoints.Count == 0)
+                    {
+                        GenerateWanderPoints();
+                    }
+                    if (wanderPoints.Count > 0)
+                    {
+                        currentWanderPointIndex = 0;
+                        MoveToNextWanderPoint();
+                    }
+                }
+            }
+            else
+            {
+                // Если агент не на NavMesh, останавливаем его
+                agent.isStopped = true;
+                if (enableDebugLogs)
+                {
+                    Debug.LogError($"❌ DungeonMonster: Не удалось разместить агента на NavMesh! Монстр остановлен.");
+                }
             }
         }
 
@@ -892,8 +1083,21 @@ public class DungeonMonster : Enemy
 
         if (enableDebugLogs)
         {
-            Debug.Log("👹 DungeonMonster респавнился!");
+            Debug.Log($"👹 DungeonMonster респавнился на позиции {transform.position}! Видим: {IsVisible()}, Агент на NavMesh: {agent?.isOnNavMesh ?? false}");
         }
+    }
+
+    /// <summary>
+    /// Проверка видимости монстра
+    /// </summary>
+    private bool IsVisible()
+    {
+        if (renderers == null || renderers.Length == 0) return false;
+        foreach (var renderer in renderers)
+        {
+            if (renderer != null && renderer.enabled) return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -901,6 +1105,16 @@ public class DungeonMonster : Enemy
     /// </summary>
     private void SetVisibility(bool visible)
     {
+        // Убеждаемся, что GameObject активен
+        if (!gameObject.activeSelf)
+        {
+            gameObject.SetActive(true);
+        }
+
+        // Переинициализируем renderers и colliders на случай, если они изменились
+        renderers = GetComponentsInChildren<Renderer>(true);
+        colliders = GetComponentsInChildren<Collider>(true);
+
         if (renderers != null)
         {
             foreach (var renderer in renderers)
@@ -908,6 +1122,12 @@ public class DungeonMonster : Enemy
                 if (renderer != null)
                 {
                     renderer.enabled = visible;
+
+                    // Также активируем GameObject renderer'а, если он в дочернем объекте
+                    if (renderer.gameObject != gameObject && !renderer.gameObject.activeSelf)
+                    {
+                        renderer.gameObject.SetActive(visible);
+                    }
                 }
             }
         }
@@ -918,15 +1138,92 @@ public class DungeonMonster : Enemy
             {
                 if (collider != null)
                 {
-                    collider.enabled = visible;
+                    // Для MeshCollider нужно убедиться, что mesh назначен
+                    if (collider is MeshCollider meshCollider)
+                    {
+                        if (meshCollider.sharedMesh == null && visible)
+                        {
+                            if (enableDebugLogs)
+                            {
+                                Debug.LogWarning($"⚠ DungeonMonster: MeshCollider на {collider.gameObject.name} не имеет mesh!");
+                            }
+                        }
+                        else
+                        {
+                            meshCollider.enabled = visible;
+                        }
+                    }
+                    else
+                    {
+                        collider.enabled = visible;
+                    }
+
+                    // Также активируем GameObject collider'а, если он в дочернем объекте
+                    if (collider.gameObject != gameObject && !collider.gameObject.activeSelf)
+                    {
+                        collider.gameObject.SetActive(visible);
+                    }
                 }
             }
         }
 
-        // Также управляем компонентом Enemy
+        // Дополнительная проверка: убеждаемся, что все дочерние объекты активны
+        if (visible)
+        {
+            foreach (Transform child in transform)
+            {
+                if (!child.gameObject.activeSelf)
+                {
+                    child.gameObject.SetActive(true);
+                    if (enableDebugLogs)
+                    {
+                        Debug.Log($"👹 DungeonMonster: Активирован дочерний объект {child.name}");
+                    }
+                }
+            }
+        }
+
+        // НЕ отключаем агента при скрытии - это может вызвать проблемы с NavMesh
+        // Вместо этого останавливаем его через isStopped
         if (agent != null)
         {
-            agent.enabled = visible;
+            if (visible)
+            {
+                // При показе убеждаемся, что агент включен
+                if (!agent.enabled)
+                {
+                    agent.enabled = true;
+                }
+            }
+            // При скрытии не отключаем агент, только останавливаем
+            // agent.enabled остается true, чтобы сохранить состояние NavMesh
+        }
+
+        if (enableDebugLogs)
+        {
+            int enabledRenderers = 0;
+            int enabledColliders = 0;
+
+            if (renderers != null)
+            {
+                foreach (var r in renderers)
+                {
+                    if (r != null && r.enabled) enabledRenderers++;
+                }
+            }
+
+            if (colliders != null)
+            {
+                foreach (var c in colliders)
+                {
+                    if (c != null && c.enabled) enabledColliders++;
+                }
+            }
+
+            Debug.Log($"👹 DungeonMonster: SetVisibility({visible}). " +
+                     $"Renderers: {renderers?.Length ?? 0} (включено: {enabledRenderers}), " +
+                     $"Colliders: {colliders?.Length ?? 0} (включено: {enabledColliders}), " +
+                     $"Active: {gameObject.activeSelf}, Visible: {IsVisible()}");
         }
     }
 
