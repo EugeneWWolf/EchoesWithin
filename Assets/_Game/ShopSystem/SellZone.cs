@@ -11,10 +11,37 @@ public class SellZone : MonoBehaviour
     [Tooltip("Сообщение, которое будет показано при входе в зону продажи")]
     [SerializeField] private string sellMessage = "Нажмите клавишу С для продажи предмета";
 
+    [Header("World Sign")]
+    [Tooltip("Показывать подпись над зоной продажи")]
+    [SerializeField] private bool showSign = true;
+    [Tooltip("Текст подписи")]
+    [SerializeField] private string signText = "Зона продажи";
+    [Tooltip("Высота подписи")]
+    [SerializeField] private float signHeight = 2f;
+
     private bool playerInside;
     private GameObject currentMessageUI;
+    private WorldSign worldSign;
 
     public bool IsPlayerInside => playerInside;
+
+    private void Start()
+    {
+        // Создаем подпись, если включена
+        if (showSign)
+        {
+            worldSign = gameObject.AddComponent<WorldSign>();
+            // Используем рефлексию для установки параметров
+            SetSignProperties(worldSign, signText, signHeight);
+        }
+    }
+
+    private void SetSignProperties(WorldSign sign, string text, float height)
+    {
+        sign.signText = text;
+        sign.heightOffset = height;
+        sign.SetText(text);
+    }
 
     private void OnTriggerEnter(Collider other)
     {

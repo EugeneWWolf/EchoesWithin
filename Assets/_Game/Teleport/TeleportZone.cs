@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
+using System.Reflection;
 
 public class TeleportZone : MonoBehaviour
 {
@@ -15,7 +16,16 @@ public class TeleportZone : MonoBehaviour
     [SerializeField] private Material progressMaterial;
     [SerializeField] private TeleportProgressUI progressUI;
 
+    [Header("World Sign")]
+    [Tooltip("Показывать подпись над зоной телепортации")]
+    [SerializeField] private bool showSign = true;
+    [Tooltip("Текст подписи")]
+    [SerializeField] private string signText = "Выход из данжа";
+    [Tooltip("Высота подписи")]
+    [SerializeField] private float signHeight = 2f;
+
     private bool isPlayerNearby = false;
+    private WorldSign worldSign;
     private bool isHolding = false;
     private float holdProgress = 0f;
     private bool isTeleporting = false; // Флаг, чтобы избежать повторной телепортации
@@ -59,7 +69,22 @@ public class TeleportZone : MonoBehaviour
         // Устанавливаем кулдаун в общий менеджер
         TeleportCooldownManager.SetCooldown(teleportCooldown);
 
+        // Создаем подпись, если включена
+        if (showSign)
+        {
+            worldSign = gameObject.AddComponent<WorldSign>();
+            // Используем рефлексию для установки параметров
+            SetSignProperties(worldSign, signText, signHeight);
+        }
+
         Debug.Log($"✅ TeleportZone инициализирован. Задержка телепортации: {teleportDelay} секунд, кулдаун: {teleportCooldown} секунд");
+    }
+
+    private void SetSignProperties(WorldSign sign, string text, float height)
+    {
+        sign.signText = text;
+        sign.heightOffset = height;
+        sign.SetText(text);
     }
 
     private void Update()

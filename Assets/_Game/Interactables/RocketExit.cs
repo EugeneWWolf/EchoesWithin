@@ -11,7 +11,7 @@ public class RocketExit : MonoBehaviour
 {
     [Header("Exit Settings")]
     [SerializeField] private int requiredMoney = 500;
-    [SerializeField] private string insufficientFundsMessage = "You need ${0} to leave this planet! You have ${1}.";
+    [SerializeField] private string insufficientFundsMessage = "Вам нужно ${0}, чтобы покинуть планету! У вас есть ${1}.";
 
     [Header("References")]
     [SerializeField] private PlayerWallet wallet;
@@ -22,11 +22,20 @@ public class RocketExit : MonoBehaviour
 
     [Header("Victory Screen")]
     [SerializeField] private Sprite victoryImage; // Картинка для экрана победы (на весь экран)
-    [SerializeField] private string pressEnterText = "Press Enter to exit";
+    [SerializeField] private string pressEnterText = "Нажмите Enter для выхода из игры";
     [SerializeField] private int pressEnterFontSize = 36;
     [SerializeField] private Color pressEnterTextColor = Color.white;
 
+    [Header("World Sign")]
+    [Tooltip("Показывать подпись над ракетой")]
+    [SerializeField] private bool showSign = true;
+    [Tooltip("Текст подписи")]
+    [SerializeField] private string signText = "Выход из данжа";
+    [Tooltip("Высота подписи")]
+    [SerializeField] private float signHeight = 3f;
+
     private GameObject currentErrorMessage; // Текущее сообщение об ошибке на экране
+    private WorldSign worldSign;
     private GameObject victoryScreen; // Экран победы
     private bool isShowingVictoryScreen = false;
 
@@ -69,6 +78,21 @@ public class RocketExit : MonoBehaviour
             collider.isTrigger = true;
             Debug.Log($"🔧 RocketExit: Коллайдер установлен как триггер для {gameObject.name}");
         }
+
+        // Создаем подпись, если включена
+        if (showSign)
+        {
+            worldSign = gameObject.AddComponent<WorldSign>();
+            // Используем рефлексию для установки параметров
+            SetSignProperties(worldSign, signText, signHeight);
+        }
+    }
+
+    private void SetSignProperties(WorldSign sign, string text, float height)
+    {
+        sign.signText = text;
+        sign.heightOffset = height;
+        sign.SetText(text);
     }
 
     /// <summary>

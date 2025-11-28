@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using System.Reflection;
 
 public class ShopZone : MonoBehaviour
 {
@@ -10,18 +11,42 @@ public class ShopZone : MonoBehaviour
     [Tooltip("Предметы, доступные для покупки в этой лавке")]
     public GameObject[] shopItems;
 
+    [Header("World Sign")]
+    [Tooltip("Показывать подпись над зоной покупки")]
+    [SerializeField] private bool showSign = true;
+    [Tooltip("Текст подписи")]
+    [SerializeField] private string signText = "Зона покупки";
+    [Tooltip("Высота подписи")]
+    [SerializeField] private float signHeight = 2f;
+
     private bool playerInside;
+    private WorldSign worldSign;
 
     public bool IsPlayerInside => playerInside;
 
     private void Start()
     {
+        // Создаем подпись, если включена
+        if (showSign)
+        {
+            worldSign = gameObject.AddComponent<WorldSign>();
+            // Используем рефлексию для установки параметров
+            SetSignProperties(worldSign, signText, signHeight);
+        }
+
         // Размещаем предметы в лавке при старте (если они уже назначены)
         // Если используется SimpleShopItemCreator, он вызовет PlaceShopItems() сам
         if (shopItems != null && shopItems.Length > 0)
         {
             PlaceShopItems();
         }
+    }
+
+    private void SetSignProperties(WorldSign sign, string text, float height)
+    {
+        sign.signText = text;
+        sign.heightOffset = height;
+        sign.SetText(text);
     }
 
     public void PlaceShopItems()
