@@ -1,8 +1,5 @@
 using UnityEngine;
 
-/// <summary>
-/// Данные для спавна предмета
-/// </summary>
 [System.Serializable]
 public struct ItemSpawnData
 {
@@ -22,9 +19,6 @@ public struct ItemSpawnData
     public StatType statType;
     public float statValue;
 
-    /// <summary>
-    /// Создает данные для спавна предмета с базовыми значениями
-    /// </summary>
     public static ItemSpawnData Create(ItemType type, Vector3 pos)
     {
         return new ItemSpawnData
@@ -34,15 +28,12 @@ public struct ItemSpawnData
             rotation = Quaternion.identity,
             itemName = $"Dungeon {type}",
             price = Random.Range(5, 50),
-            description = $"Предмет из данжа типа {type}",
+            description = $"Предмет из даыEЃEтиЃE {type}",
             statType = StatType.Health,
             statValue = Random.Range(1f, 5f)
         };
     }
 
-    /// <summary>
-    /// Создает данные для спавна случайного предмета
-    /// </summary>
     public static ItemSpawnData CreateRandom(Vector3 pos)
     {
         ItemType[] types = { ItemType.SellableItem, ItemType.BuffItem, ItemType.Weapon };
@@ -55,7 +46,7 @@ public struct ItemSpawnData
             rotation = Quaternion.identity,
             itemName = $"Random Dungeon Item",
             price = Random.Range(10, 100),
-            description = $"Случайный предмет из данжа",
+            description = $"Test",
             statType = (StatType)Random.Range(0, System.Enum.GetValues(typeof(StatType)).Length),
             statValue = Random.Range(1f, 10f)
         };
