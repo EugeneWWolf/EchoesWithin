@@ -49,6 +49,9 @@ public class PlayerMovement
 
     public void Tick()
     {
+        if (controller == null || !controller.enabled)
+            return;
+
         Vector3 move = controller.transform.right * moveInput.x + controller.transform.forward * moveInput.z;
         controller.Move(speed * Time.deltaTime * move);
 
