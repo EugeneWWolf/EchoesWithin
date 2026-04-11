@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
+using UnityEngine.EventSystems;
 using System.Reflection;
 
 /// <summary>
@@ -34,10 +35,25 @@ public class RocketExit : MonoBehaviour
     [Tooltip("Высота подписи")]
     [SerializeField] private float signHeight = 3f;
 
+    [Header("Продолжить игру при выполненной квоте")]
+    [Tooltip("Если включено и денег хватает, сначала показывается выбор: улететь или поднять квоту и играть дальше")]
+    [SerializeField] private bool offerContinueChoiceWhenQuotaMet = true;
+    [Tooltip("Во сколько раз умножить текущую квоту при «Продолжить игру» (минимум ×2)")]
+    [SerializeField, Min(2f)] private float quotaMultiplierOnContinue = 4f;
+    [Tooltip("Новая квота не ниже «баланс × (1 + эта доля)», чтобы нельзя было сразу снова улететь с теми же деньгами")]
+    [SerializeField, Range(0.05f, 3f)] private float continueQuotaAboveBalanceFraction = 0.25f;
+    [SerializeField] private string choiceTitleText = "Квота выполнена";
+    [SerializeField] private string choiceBodyFormat = "У вас ${0}. Сейчас для вылета нужно ${1}.\nПокинуть планету или продолжить? Новая квота будет ${2}.";
+    [SerializeField] private string leaveButtonText = "Покинуть планету";
+    [SerializeField] private string continueButtonText = "Продолжить игру";
+
     private GameObject currentErrorMessage; // Текущее сообщение об ошибке на экране
     private WorldSign worldSign;
     private GameObject victoryScreen; // Экран победы
     private bool isShowingVictoryScreen = false;
+    private GameObject choiceScreenRoot;
+    private bool isShowingExitChoice = false;
+    private static Sprite s_cachedUiSprite;
 
     private void Start()
     {
@@ -100,6 +116,9 @@ public class RocketExit : MonoBehaviour
     /// </summary>
     public bool TryExit()
     {
+        if (isShowingExitChoice || isShowingVictoryScreen)
+            return false;
+
         if (wallet == null)
         {
             Debug.LogError("❌ RocketExit: PlayerWallet не найден!");
@@ -111,7 +130,12 @@ public class RocketExit : MonoBehaviour
 
         if (currentBalance >= requiredMoney)
         {
-            // Игрок собрал достаточно денег - завершаем игру
+            if (offerContinueChoiceWhenQuotaMet)
+            {
+                ShowExitChoicePanel(currentBalance);
+                return true;
+            }
+
             Debug.Log($"🚀 Игрок покидает планету! Баланс: ${currentBalance} (требуется: ${requiredMoney})");
             ExitGame();
             return true;
@@ -133,6 +157,199 @@ public class RocketExit : MonoBehaviour
 
         // Показываем экран победы вместо мгновенного выхода
         ShowVictoryScreen();
+    }
+
+    private static Sprite GetSolidUiSprite()
+    {
+        if (s_cachedUiSprite == null)
+        {
+            Texture2D t = Texture2D.whiteTexture;
+            s_cachedUiSprite = Sprite.Create(t, new Rect(0, 0, t.width, t.height), new Vector2(0.5f, 0.5f), 100f);
+        }
+        return s_cachedUiSprite;
+    }
+
+    private void ShowExitChoicePanel(int currentBalance)
+    {
+        if (isShowingExitChoice) return;
+        isShowingExitChoice = true;
+
+        Canvas canvas = FindInventoryCanvas();
+        if (canvas == null)
+        {
+            Debug.LogError("❌ RocketExit: Canvas не найден для окна выбора!");
+            isShowingExitChoice = false;
+            ExitGame();
+            return;
+        }
+
+        int nextQuota = ComputeNextQuotaAfterContinue(currentBalance);
+
+        GameObject root = new GameObject("RocketExitChoice");
+        root.transform.SetParent(canvas.transform, false);
+        choiceScreenRoot = root;
+
+        RectTransform panelRect = root.AddComponent<RectTransform>();
+        panelRect.anchorMin = Vector2.zero;
+        panelRect.anchorMax = Vector2.one;
+        panelRect.offsetMin = Vector2.zero;
+        panelRect.offsetMax = Vector2.zero;
+        panelRect.localScale = Vector3.one;
+
+        Image bg = root.AddComponent<Image>();
+        bg.color = new Color(0, 0, 0, 0.92f);
+        bg.sprite = GetSolidUiSprite();
+
+        CreateChoiceLegacyText(root.transform, choiceTitleText, 32, Color.white, new Vector2(0.5f, 0.62f), new Vector2(720, 72));
+
+        string body = string.Format(choiceBodyFormat, currentBalance, requiredMoney, nextQuota);
+        CreateChoiceLegacyText(root.transform, body, 22, new Color(0.95f, 0.95f, 0.95f, 1f), new Vector2(0.5f, 0.48f), new Vector2(760, 140));
+
+        GameObject row = new GameObject("ButtonsRow");
+        row.transform.SetParent(root.transform, false);
+        RectTransform rowRect = row.AddComponent<RectTransform>();
+        rowRect.anchorMin = new Vector2(0.5f, 0.28f);
+        rowRect.anchorMax = new Vector2(0.5f, 0.28f);
+        rowRect.sizeDelta = new Vector2(640, 64);
+        rowRect.anchoredPosition = Vector2.zero;
+
+        GameObject leaveBtn = CreateChoiceButton(row.transform, leaveButtonText, new Color(0.15f, 0.45f, 0.2f, 1f), new Vector2(-165, 0), new Vector2(300, 56), OnChosenLeavePlanet);
+        CreateChoiceButton(row.transform, continueButtonText, new Color(0.2f, 0.25f, 0.5f, 1f), new Vector2(165, 0), new Vector2(300, 56), () => OnChosenContinuePlaying(currentBalance));
+
+        panelRect.SetAsLastSibling();
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        if (EventSystem.current != null && leaveBtn != null)
+            EventSystem.current.SetSelectedGameObject(leaveBtn);
+
+        Debug.Log("✅ RocketExit: Показан выбор — улететь или продолжить с повышенной квотой.");
+    }
+
+    private static void CreateChoiceLegacyText(Transform parent, string text, int fontSize, Color color, Vector2 anchorCenter, Vector2 sizeDelta)
+    {
+        GameObject go = new GameObject("ChoiceText");
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = anchorCenter;
+        rt.anchorMax = anchorCenter;
+        rt.sizeDelta = sizeDelta;
+        rt.anchoredPosition = Vector2.zero;
+
+        Text t = go.AddComponent<Text>();
+        t.text = text;
+        t.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        t.fontSize = fontSize;
+        t.color = color;
+        t.alignment = TextAnchor.MiddleCenter;
+        t.horizontalOverflow = HorizontalWrapMode.Wrap;
+        t.verticalOverflow = VerticalWrapMode.Overflow;
+
+        Outline o = go.AddComponent<Outline>();
+        o.effectColor = Color.black;
+        o.effectDistance = new Vector2(2, 2);
+    }
+
+    private static GameObject CreateChoiceButton(Transform parent, string label, Color bgColor, Vector2 anchoredPos, Vector2 size, UnityEngine.Events.UnityAction onClick)
+    {
+        GameObject go = new GameObject("Button_" + label);
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = size;
+        rt.anchoredPosition = anchoredPos;
+
+        Image img = go.AddComponent<Image>();
+        img.sprite = GetSolidUiSprite();
+        img.color = bgColor;
+
+        Button btn = go.AddComponent<Button>();
+        btn.targetGraphic = img;
+        ColorBlock colors = btn.colors;
+        colors.highlightedColor = bgColor * 1.15f;
+        colors.pressedColor = bgColor * 0.85f;
+        btn.colors = colors;
+        btn.onClick.AddListener(onClick);
+
+        GameObject textGo = new GameObject("Text");
+        textGo.transform.SetParent(go.transform, false);
+        RectTransform textRt = textGo.AddComponent<RectTransform>();
+        textRt.anchorMin = Vector2.zero;
+        textRt.anchorMax = Vector2.one;
+        textRt.offsetMin = Vector2.zero;
+        textRt.offsetMax = Vector2.zero;
+
+        Text t = textGo.AddComponent<Text>();
+        t.text = label;
+        t.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        t.fontSize = 20;
+        t.color = Color.white;
+        t.alignment = TextAnchor.MiddleCenter;
+
+        Outline outline = textGo.AddComponent<Outline>();
+        outline.effectColor = Color.black;
+        outline.effectDistance = new Vector2(1, 1);
+
+        return go;
+    }
+
+    private void OnChosenLeavePlanet()
+    {
+        CloseExitChoicePanel();
+        ExitGame();
+    }
+
+    private void OnChosenContinuePlaying(int currentBalanceAtChoice)
+    {
+        int newQuota = ComputeNextQuotaAfterContinue(currentBalanceAtChoice);
+
+        foreach (RocketExit rocket in FindObjectsOfType<RocketExit>())
+            rocket.SetRequiredMoney(newQuota);
+
+        foreach (GoalUI goal in FindObjectsOfType<GoalUI>())
+        {
+            goal.SetRequiredMoney(newQuota);
+            goal.RefreshDisplay();
+        }
+
+        CloseExitChoicePanel();
+        RestoreGameplayCursor();
+
+        Debug.Log($"🚀 Квота для вылета повышена до ${newQuota}. Игра продолжается.");
+    }
+
+    /// <summary>
+    /// Новая квота после «Продолжить»: max(текущая_квота × множитель, баланс × (1 + доля_над_балансом)).
+    /// </summary>
+    private int ComputeNextQuotaAfterContinue(int playerBalance)
+    {
+        float mult = Mathf.Max(2f, quotaMultiplierOnContinue);
+        int fromMultiplier = Mathf.CeilToInt(requiredMoney * mult);
+        fromMultiplier = Mathf.Max(fromMultiplier, requiredMoney + 1);
+
+        float frac = Mathf.Max(0.05f, continueQuotaAboveBalanceFraction);
+        int fromBalance = Mathf.CeilToInt(Mathf.Max(0, playerBalance) * (1f + frac));
+        fromBalance = Mathf.Max(fromBalance, playerBalance + 1);
+
+        return Mathf.Max(fromMultiplier, fromBalance);
+    }
+
+    private void CloseExitChoicePanel()
+    {
+        if (choiceScreenRoot != null)
+        {
+            Destroy(choiceScreenRoot);
+            choiceScreenRoot = null;
+        }
+        isShowingExitChoice = false;
+    }
+
+    private static void RestoreGameplayCursor()
+    {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     private void ShowVictoryScreen()
@@ -202,7 +419,7 @@ public class RocketExit : MonoBehaviour
             // Используем Legacy Text
             Text legacyText = textObj.AddComponent<Text>();
             legacyText.text = pressEnterText;
-            legacyText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            legacyText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             legacyText.fontSize = pressEnterFontSize;
             legacyText.color = pressEnterTextColor;
             legacyText.alignment = TextAnchor.MiddleCenter;
