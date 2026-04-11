@@ -20,6 +20,12 @@ public class DungeonItemSpawner : MonoBehaviour
     [SerializeField] private DungeonNodeGenerator nodeGenerator; // Генератор нодов (необязательно, если ноды расставлены вручную)
     [SerializeField] private Transform nodesParent; // Родительский объект с нодами (если ноды расставлены вручную)
 
+    [Header("Процедурный данж")]
+    [Tooltip("Если задан — после генерации ноды берутся из ProceduralDungeonGenerator (родитель под сгенерированными комнатами).")]
+    [SerializeField] private ProceduralDungeonGenerator proceduralDungeon;
+    [Tooltip("Если включено и назначен proceduralDungeon — используются только ноды из процедурного данжа (старые в сцене игнорируются).")]
+    [SerializeField] private bool useOnlyProceduralItemNodesWhenAssigned = true;
+
     [Header("Spawn Areas (для Fallback режима)")]
     [SerializeField] private Transform dungeonCenter; // Центр данжа (используется если ноды не найдены)
     [SerializeField] private LayerMask groundLayer = 1; // Слой земли для размещения предметов
@@ -90,6 +96,34 @@ public class DungeonItemSpawner : MonoBehaviour
         }
 
         Debug.Log($"🏰 DungeonItemSpawner: Инициализирован. Режим: {spawnMode}, Нодов найдено: {availableNodes.Count}");
+    }
+
+    private void OnEnable()
+    {
+        if (proceduralDungeon != null)
+            proceduralDungeon.OnAfterDungeonGenerated += HandleProceduralDungeonRegenerated;
+    }
+
+    private void OnDisable()
+    {
+        if (proceduralDungeon != null)
+            proceduralDungeon.OnAfterDungeonGenerated -= HandleProceduralDungeonRegenerated;
+    }
+
+    private void HandleProceduralDungeonRegenerated()
+    {
+        usedNodes.Clear();
+        ClearAllItems();
+        InitializeNodes();
+
+        if (spawnCoroutine != null)
+        {
+            StopCoroutine(spawnCoroutine);
+            spawnCoroutine = null;
+        }
+
+        if (spawnOnStart && Application.isPlaying && itemFactory != null)
+            StartSpawning();
     }
 
     /// <summary>
@@ -403,6 +437,36 @@ public class DungeonItemSpawner : MonoBehaviour
             return;
         }
 
+        if (proceduralDungeon != null)
+        {
+            Transform procRoot = proceduralDungeon.ItemSpawnNodesRoot;
+            if (procRoot != null)
+            {
+                DungeonSpawnNode[] procNodes = procRoot.GetComponentsInChildren<DungeonSpawnNode>(true);
+                availableNodes.AddRange(procNodes);
+                availableNodes.RemoveAll(node =>
+                    node == null || !node.IsActive || !node.gameObject.activeInHierarchy);
+                Debug.Log($"🏰 DungeonItemSpawner: Загружено {availableNodes.Count} нодов из процедурного данжа.");
+                if (availableNodes.Count > 0)
+                    return;
+
+                if (useOnlyProceduralItemNodesWhenAssigned)
+                {
+                    Debug.LogWarning(
+                        "🏰 DungeonItemSpawner: Под процедурным данжем нет активных DungeonSpawnNode. " +
+                        "Проверь createItemSpawnNodesAfterGenerate / itemSpawnNodeCount на ProceduralDungeonGenerator.");
+                    return;
+                }
+            }
+            else if (useOnlyProceduralItemNodesWhenAssigned)
+            {
+                Debug.LogWarning(
+                    "🏰 DungeonItemSpawner: Назначен proceduralDungeon, но ItemSpawnNodesRoot ещё null " +
+                    "(генерация не вызывалась или отключены ноды).");
+                return;
+            }
+        }
+
         // Пытаемся найти ноды через генератор
         if (nodeGenerator != null)
         {
@@ -441,8 +505,9 @@ public class DungeonItemSpawner : MonoBehaviour
         // Сохраняем количество до фильтрации
         int totalNodesBeforeFilter = availableNodes.Count;
 
-        // Фильтруем только активные ноды
-        availableNodes.RemoveAll(node => node == null || !node.IsActive);
+        // Только ноды в активной иерархии (выключенный старый DungeonSpawnNodes не подмешивается)
+        availableNodes.RemoveAll(node =>
+            node == null || !node.IsActive || !node.gameObject.activeInHierarchy);
 
         int inactiveNodes = totalNodesBeforeFilter - availableNodes.Count;
 

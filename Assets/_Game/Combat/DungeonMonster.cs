@@ -308,8 +308,8 @@ public class DungeonMonster : Enemy
             }
         }
 
-        // Фильтруем только активные ноды
-        patrolNodes.RemoveAll(node => node == null || !node.IsActive);
+        patrolNodes.RemoveAll(node =>
+            node == null || !node.IsActive || !node.gameObject.activeInHierarchy);
 
         if (patrolNodes.Count == 0)
         {

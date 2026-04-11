@@ -70,6 +70,14 @@ public class ProceduralDungeonGenerator : MonoBehaviour
     [SerializeField] private bool assignDungeonCollisionLayer = true;
     [SerializeField] private string dungeonCollisionLayerName = "Dungeon";
 
+    [Header("Ноды спавна предметов (DungeonSpawnNode)")]
+    [Tooltip("После генерации комнат создаётся родитель DungeonSpawnNodes с нодами на полу — для DungeonItemSpawner и патруля.")]
+    [SerializeField] private bool createItemSpawnNodesAfterGenerate = true;
+    [SerializeField] [Min(0)] private int itemSpawnNodeCount = 48;
+    [Tooltip("Минимальное расстояние между нодами по XZ, чтобы не кучковались.")]
+    [SerializeField] [Min(0.1f)] private float itemSpawnNodeMinSeparation = 2f;
+    [SerializeField] private string itemSpawnNodesRootName = "DungeonSpawnNodes";
+
     [Header("Lifecycle")]
     [SerializeField] private bool generateOnAwake = true;
 
@@ -82,12 +90,19 @@ public class ProceduralDungeonGenerator : MonoBehaviour
     [SerializeField] [Range(0.2f, 0.99f)] private float randomFloorMinUpNormalDot = 0.45f;
 
     private Transform generatedRoot;
+    private Transform itemSpawnNodesRoot;
     private RaycastHit[] randomFloorRaycastHits;
     private Transform dungeonEnterSpawn;
     private readonly HashSet<Vector2Int> placedCells = new HashSet<Vector2Int>();
 
     public IReadOnlyCollection<Vector2Int> PlacedCells => placedCells;
     public Transform GeneratedRoot => generatedRoot;
+
+    /// <summary>Родитель процедурно созданных DungeonSpawnNode; null если выключено или до первой генерации.</summary>
+    public Transform ItemSpawnNodesRoot => itemSpawnNodesRoot;
+
+    /// <summary>После полной генерации комнат, коллайдеров, точки входа и (опционально) выхода.</summary>
+    public event System.Action OnAfterDungeonGenerated;
 
     /// <summary>Мир-точка телепорта в стартовую комнату (клетка 0,0). Создаётся при первой генерации.</summary>
     public Transform DungeonEnterSpawn => dungeonEnterSpawn;
@@ -108,6 +123,7 @@ public class ProceduralDungeonGenerator : MonoBehaviour
         for (int i = generatedRoot.childCount - 1; i >= 0; i--)
             Destroy(generatedRoot.GetChild(i).gameObject);
 
+        itemSpawnNodesRoot = null;
         placedCells.Clear();
         DungeonCollisionLayerIndex = -1;
     }
@@ -183,7 +199,75 @@ public class ProceduralDungeonGenerator : MonoBehaviour
             (useSimpleProceduralDungeonExit || dungeonExitZonePrefab != null))
             SpawnDungeonExitZone(startRoomInstance);
 
+        CreateItemSpawnNodesIfEnabled();
+
+        OnAfterDungeonGenerated?.Invoke();
+
         Debug.Log($"ProceduralDungeonGenerator: сгенерировано {placedCells.Count} комнат (seed={seed}).");
+    }
+
+    private void CreateItemSpawnNodesIfEnabled()
+    {
+        itemSpawnNodesRoot = null;
+
+        if (!createItemSpawnNodesAfterGenerate || itemSpawnNodeCount <= 0)
+            return;
+
+        if (generatedRoot == null || generatedRoot.childCount == 0)
+            return;
+
+        Physics.SyncTransforms();
+
+        var rootGo = new GameObject(string.IsNullOrWhiteSpace(itemSpawnNodesRootName)
+            ? "DungeonSpawnNodes"
+            : itemSpawnNodesRootName.Trim());
+        rootGo.transform.SetParent(generatedRoot, false);
+        itemSpawnNodesRoot = rootGo.transform;
+
+        float sep = itemSpawnNodeMinSeparation;
+        float sepSqr = sep * sep;
+        var placed = new List<Vector3>(itemSpawnNodeCount);
+        int maxTries = Mathf.Max(itemSpawnNodeCount * 40, 120);
+        int tries = 0;
+
+        while (placed.Count < itemSpawnNodeCount && tries < maxTries)
+        {
+            tries++;
+            if (!TryGetRandomFloorPosition(out Vector3 pos, out _, 32))
+                continue;
+
+            bool tooClose = false;
+            for (int i = 0; i < placed.Count; i++)
+            {
+                float dx = placed[i].x - pos.x;
+                float dz = placed[i].z - pos.z;
+                if (dx * dx + dz * dz < sepSqr)
+                {
+                    tooClose = true;
+                    break;
+                }
+            }
+
+            if (tooClose)
+                continue;
+
+            placed.Add(pos);
+            var nodeGo = new GameObject($"SpawnNode_{placed.Count - 1}");
+            nodeGo.transform.SetParent(itemSpawnNodesRoot, false);
+            nodeGo.transform.position = pos;
+            nodeGo.AddComponent<DungeonSpawnNode>();
+        }
+
+        if (placed.Count < itemSpawnNodeCount)
+        {
+            Debug.LogWarning(
+                $"ProceduralDungeonGenerator: создано {placed.Count} нодов спавна из запрошенных {itemSpawnNodeCount} " +
+                $"(попыток: {tries}). Увеличь попытки или уменьши itemSpawnNodeMinSeparation.");
+        }
+        else
+        {
+            Debug.Log($"ProceduralDungeonGenerator: создано {placed.Count} нодов спавна предметов.");
+        }
     }
 
     private void EnsureGeneratedRoot()
