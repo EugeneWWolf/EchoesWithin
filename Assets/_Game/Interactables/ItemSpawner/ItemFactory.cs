@@ -183,8 +183,8 @@ public class ItemFactory : MonoBehaviour
                     buffItem = item.AddComponent<BuffItem>();
                 }
 
-                // Случайно выбираем тип стата для BuffItem (скорость и урон)
-                StatType[] availableStats = { StatType.Speed, StatType.Damage };
+                // Случайный бафф для лута в данже: скорость, урон, макс. HP (цвет похлёбки как в BuffLootVisuals)
+                StatType[] availableStats = { StatType.Speed, StatType.Damage, StatType.Health };
                 buffItem.statType = availableStats[Random.Range(0, availableStats.Length)];
                 buffItem.statValue = spawnData.statValue;
 
@@ -193,11 +193,10 @@ public class ItemFactory : MonoBehaviour
                 item.GetComponent<Item>().itemName = $"{statName} Potion (+{buffItem.statValue:F1})";
                 item.GetComponent<Item>().description = $"Зелье, увеличивающее {statName.ToLower()} на {buffItem.statValue:F1}";
 
-                // Устанавливаем цвет зелья в зависимости от типа стата
-                SetPotionColor(item, buffItem.statType);
+                BuffLootVisuals.ApplyTintToRenderers(item, buffItem.statType);
 
                 if (verboseItemFactoryLogs)
-                    Debug.Log($"🏭 ItemFactory: Создан {buffItem.statType} зелье со значением {buffItem.statValue:F1} (фабрика создает только Speed/Damage зелья)");
+                    Debug.Log($"🏭 ItemFactory: Создан {buffItem.statType} зелье со значением {buffItem.statValue:F1} (Speed/Damage/Health)");
                 break;
 
             case ItemType.Weapon:
@@ -386,43 +385,6 @@ public class ItemFactory : MonoBehaviour
                 return "Gravity";
             default:
                 return "Unknown";
-        }
-    }
-
-    /// <summary>
-    /// Устанавливает цвет зелья в зависимости от типа стата
-    /// </summary>
-    private void SetPotionColor(GameObject potion, StatType statType)
-    {
-        Renderer renderer = potion.GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            Color potionColor = GetPotionColor(statType);
-            renderer.material.color = potionColor;
-            if (verboseItemFactoryLogs)
-                Debug.Log($"🎨 Установлен цвет зелья: {statType} = {potionColor}");
-        }
-    }
-
-    /// <summary>
-    /// Получает цвет зелья для типа стата
-    /// </summary>
-    private Color GetPotionColor(StatType statType)
-    {
-        switch (statType)
-        {
-            case StatType.Speed:
-                return Color.blue; // Синий для скорости
-            case StatType.JumpHeight:
-                return Color.green; // Зеленый для прыжка
-            case StatType.Damage:
-                return Color.red; // Красный для урона
-            case StatType.Health:
-                return Color.yellow; // Желтый для здоровья (не используется фабрикой)
-            case StatType.Gravity:
-                return Color.magenta; // Пурпурный для гравитации (не используется фабрикой)
-            default:
-                return Color.white; // Белый по умолчанию
         }
     }
 

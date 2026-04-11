@@ -13,6 +13,10 @@ public class SimpleShopItemCreator : MonoBehaviour
     [Header("Префабы предметов")]
     [SerializeField] private GameObject[] itemPrefabs; // Ваши готовые префабы
 
+    [Header("Лавка: баффы как в данже")]
+    [Tooltip("Если задан — для слотов ItemType.BuffItem подставляется эта похлёбка вместо префаба из itemPrefabs; цвет по statType как в ItemFactory.")]
+    [SerializeField] private GameObject buffLootStewPrefab;
+
     [Header("Настройки предметов")]
     [SerializeField] private ShopItemData[] itemData; // Данные о предметах
 
@@ -63,14 +67,15 @@ public class SimpleShopItemCreator : MonoBehaviour
 
         for (int i = 0; i < itemPrefabs.Length && i < itemData.Length; i++)
         {
-            if (itemPrefabs[i] != null)
-            {
-                GameObject item = Instantiate(itemPrefabs[i]);
-                SetupItem(item, itemData[i]);
-                createdItems[i] = item;
+            GameObject prefab = ResolveShopPrefab(i);
+            if (prefab == null)
+                continue;
 
-                Debug.Log($"✅ Создан предмет: {itemData[i].itemName}");
-            }
+            GameObject item = Instantiate(prefab);
+            SetupItem(item, itemData[i]);
+            createdItems[i] = item;
+
+            Debug.Log($"✅ Создан предмет: {itemData[i].itemName}");
         }
 
         // Назначаем созданные предметы в ShopZone
@@ -167,9 +172,46 @@ public class SimpleShopItemCreator : MonoBehaviour
             Debug.Log($"💰 SimpleShopItemCreator: Добавлен компонент отображения цены для {data.itemName}");
         }
 
+        if (data.type == ItemType.BuffItem)
+        {
+            BuffLootVisuals.ApplyTintToRenderers(item, data.statType);
+            ConfigureShopBuffPhysics(item);
+        }
+
         // Деактивируем предмет (ShopZone активирует его при размещении)
         // Это должно произойти ПОСЛЕ добавления компонента, чтобы OnEnable мог сработать при активации
         item.SetActive(false);
+    }
+
+    private GameObject ResolveShopPrefab(int slotIndex)
+    {
+        ShopItemData data = itemData[slotIndex];
+        if (data.type == ItemType.BuffItem && buffLootStewPrefab != null)
+            return buffLootStewPrefab;
+        if (slotIndex >= 0 && slotIndex < itemPrefabs.Length && itemPrefabs[slotIndex] != null)
+            return itemPrefabs[slotIndex];
+        return itemPrefabs != null && itemPrefabs.Length > 0 ? itemPrefabs[0] : null;
+    }
+
+    /// <summary>
+    /// Похлёбка из данжа с Rigidbody — в лавке без гравитации и с триггером для подбора.
+    /// </summary>
+    private static void ConfigureShopBuffPhysics(GameObject item)
+    {
+        if (item.TryGetComponent(out Rigidbody rb))
+        {
+            rb.isKinematic = true;
+            rb.useGravity = false;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+
+        var colliders = item.GetComponentsInChildren<Collider>(true);
+        for (int c = 0; c < colliders.Length; c++)
+        {
+            if (colliders[c] != null)
+                colliders[c].isTrigger = true;
+        }
     }
 
     // Метод для ручного создания предметов
@@ -213,6 +255,9 @@ public class SimpleShopItemCreator : MonoBehaviour
             Debug.LogWarning("⚠ SimpleShopItemCreator: Выбранный префаб равен null!");
             return null;
         }
+
+        if (randomData.type == ItemType.BuffItem && buffLootStewPrefab != null)
+            randomPrefab = buffLootStewPrefab;
 
         // Создаем предмет
         GameObject item = Instantiate(randomPrefab);
