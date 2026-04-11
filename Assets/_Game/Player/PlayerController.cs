@@ -567,6 +567,22 @@ public class PlayerController : MonoBehaviour
     public float GetMaxHealth() => playerStats != null ? playerStats.currentHealth : 100f;
 
     /// <summary>
+    /// После увеличения макс. HP из статов: если до этого текущее HP было на максимуме — заполняем до нового макс.
+    /// </summary>
+    public void SyncCurrentHealthAfterMaxHealthIncrease(float previousMaxHealthFromStats)
+    {
+        if (playerStats == null || isDead)
+            return;
+        float newMax = playerStats.currentHealth;
+        if (newMax <= previousMaxHealthFromStats)
+            return;
+        const float fullHpEpsilon = 0.001f;
+        if (currentHealth < previousMaxHealthFromStats - fullHpEpsilon)
+            return;
+        currentHealth = newMax;
+    }
+
+    /// <summary>
     /// Проверка, жив ли игрок
     /// </summary>
     public bool IsDead() => isDead;

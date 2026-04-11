@@ -30,15 +30,19 @@ public class BuffItem : MonoBehaviour
     public bool isPermanent = true; // постоянный или временный бонус
     public float duration = 0f; // длительность в секундах (0 = постоянный)
 
-    public void ApplyBuff(PlayerStats playerStats)
+    public void ApplyBuff(PlayerStats playerStats, PlayerController player = null)
     {
         // Сохраняем старые значения для сравнения
         float oldSpeed = playerStats.currentSpeed;
         float oldJump = playerStats.currentJumpHeight;
         float oldDamage = playerStats.currentDamage;
         float oldHealth = playerStats.currentHealth;
+        float previousMaxHp = statType == StatType.Health && player != null ? playerStats.currentHealth : 0f;
 
         playerStats.AddStatModifier(statType, statValue);
+
+        if (statType == StatType.Health && player != null)
+            player.SyncCurrentHealthAfterMaxHealthIncrease(previousMaxHp);
 
         // Логируем изменения
         Debug.Log($"🧪 Применен бонус: {statType} +{statValue}");

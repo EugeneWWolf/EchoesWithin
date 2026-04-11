@@ -132,7 +132,7 @@ public class PlayerInteraction
                     if (targetItem.TryGetComponent<BuffItem>(out var buffItem))
                     {
                         // BuffItem применяется и уничтожается, не добавляется в инвентарь
-                        buffItem.ApplyBuff(playerStats);
+                        buffItem.ApplyBuff(playerStats, playerController);
 
                         // Обновляем статы движения после применения бонуса
                         if (playerController != null)
@@ -537,7 +537,7 @@ public class PlayerInteraction
         // Применяем эффекты предмета в зависимости от типа
         if (itemObject.TryGetComponent<BuffItem>(out var buffItem))
         {
-            buffItem.ApplyBuff(playerStats);
+            buffItem.ApplyBuff(playerStats, playerController);
 
             // Обновляем статы движения после применения бонуса
             if (playerController != null)

@@ -242,10 +242,9 @@ public class SimpleShopItemCreator : MonoBehaviour
         // Для BuffItem рандомизируем тип стата
         if (randomType == ItemType.BuffItem)
         {
-            StatType[] buffStats = { StatType.Speed, StatType.JumpHeight };
+            StatType[] buffStats = { StatType.Speed, StatType.Damage };
             randomStatType = buffStats[Random.Range(0, buffStats.Length)];
-            // Обновляем название и описание для зелья
-            string statName = randomStatType == StatType.Speed ? "Speed" : "Jump";
+            string statName = randomStatType == StatType.Speed ? "Speed" : "Damage";
             randomName = $"{statName} Potion (+{randomStatValue:F1})";
             randomDescription = $"Зелье, увеличивающее {statName.ToLower()} на {randomStatValue:F1}";
         }
@@ -279,16 +278,16 @@ public class SimpleShopItemCreator : MonoBehaviour
         // Для BuffItem рандомизируем тип стата
         if (randomType == ItemType.BuffItem)
         {
-            StatType[] buffStats = { StatType.Speed, StatType.JumpHeight };
+            StatType[] buffStats = { StatType.Speed, StatType.Damage };
             randomStatType = buffStats[Random.Range(0, buffStats.Length)];
             randomStatValue = Random.Range(1f, 10f);
-            string statName = randomStatType == StatType.Speed ? "Speed" : "Jump";
+            string statName = randomStatType == StatType.Speed ? "Speed" : "Damage";
             randomName = $"{statName} Potion (+{randomStatValue:F1})";
             randomDescription = $"Зелье, увеличивающее {statName.ToLower()} на {randomStatValue:F1}";
         }
         else
         {
-            StatType[] statTypes = { StatType.Speed, StatType.JumpHeight, StatType.Damage, StatType.Health };
+            StatType[] statTypes = { StatType.Speed, StatType.Damage, StatType.Health };
             randomStatType = statTypes[Random.Range(0, statTypes.Length)];
             randomStatValue = Random.Range(1f, 10f);
             randomName = $"Random {randomType}";

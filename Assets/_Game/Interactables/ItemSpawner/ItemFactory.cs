@@ -183,9 +183,8 @@ public class ItemFactory : MonoBehaviour
                     buffItem = item.AddComponent<BuffItem>();
                 }
 
-                // Случайно выбираем тип стата для BuffItem (только скорость и прыжок)
-                // Другие типы зелий (урон, здоровье) можно создавать вручную
-                StatType[] availableStats = { StatType.Speed, StatType.JumpHeight };
+                // Случайно выбираем тип стата для BuffItem (скорость и урон)
+                StatType[] availableStats = { StatType.Speed, StatType.Damage };
                 buffItem.statType = availableStats[Random.Range(0, availableStats.Length)];
                 buffItem.statValue = spawnData.statValue;
 
@@ -198,7 +197,7 @@ public class ItemFactory : MonoBehaviour
                 SetPotionColor(item, buffItem.statType);
 
                 if (verboseItemFactoryLogs)
-                    Debug.Log($"🏭 ItemFactory: Создан {buffItem.statType} зелье со значением {buffItem.statValue:F1} (фабрика создает только Speed/Jump зелья)");
+                    Debug.Log($"🏭 ItemFactory: Создан {buffItem.statType} зелье со значением {buffItem.statValue:F1} (фабрика создает только Speed/Damage зелья)");
                 break;
 
             case ItemType.Weapon:
@@ -417,7 +416,7 @@ public class ItemFactory : MonoBehaviour
             case StatType.JumpHeight:
                 return Color.green; // Зеленый для прыжка
             case StatType.Damage:
-                return Color.red; // Красный для урона (не используется фабрикой)
+                return Color.red; // Красный для урона
             case StatType.Health:
                 return Color.yellow; // Желтый для здоровья (не используется фабрикой)
             case StatType.Gravity:
