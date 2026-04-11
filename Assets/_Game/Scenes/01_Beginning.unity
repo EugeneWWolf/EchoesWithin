@@ -16031,10 +16031,12 @@ MonoBehaviour:
   dungeonExitZonePrefab: {fileID: 0}
   simpleExitTriggerSize: {x: 1.5, y: 2.2, z: 1.2}
   simpleExitTriggerCenter: {x: 0, y: 1.1, z: 0}
-  simpleExitMarkerRadius: 0.75
+  simpleExitMarkerRadius: 0.2
   simpleExitMarkerColor: {r: 0.15, g: 0.55, b: 1, a: 0.92}
   simpleExitSignText: "\u0412\u044B\u0445\u043E\u0434"
   simpleExitSignHeight: 1.85
+  simpleExitTriggerBottomAlignedToFloor: 1
+  simpleExitTriggerFootprintMatchesMarker: 1
   placeDungeonExitAtRandomFloor: 1
   exitZoneOffsetLocalFromEnterSpawn: {x: 4, y: 0, z: -5}
   dungeonSurfaceReturnPoint: {fileID: 0}
@@ -16047,6 +16049,10 @@ MonoBehaviour:
   - Ceiling
   assignDungeonCollisionLayer: 1
   dungeonCollisionLayerName: Dungeon
+  createItemSpawnNodesAfterGenerate: 1
+  itemSpawnNodeCount: 48
+  itemSpawnNodeMinSeparation: 2
+  itemSpawnNodesRootName: DungeonSpawnNodes
   generateOnAwake: 1
   randomFloorRaycastMask:
     serializedVersion: 2
@@ -29355,6 +29361,8 @@ MonoBehaviour:
   spawnMode: 0
   nodeGenerator: {fileID: 1876080152}
   nodesParent: {fileID: 1918065121}
+  proceduralDungeon: {fileID: 0}
+  useOnlyProceduralItemNodesWhenAssigned: 1
   dungeonCenter: {fileID: 175165923}
   groundLayer:
     serializedVersion: 2

@@ -45,6 +45,7 @@ public class TeleportZone : MonoBehaviour
     private bool _lastTeleportKeptPlayerUnderground;
 
     private bool isPlayerNearby = false;
+    private Coroutine _delayedTeleportCoroutine;
     private WorldSign worldSign;
     private bool isHolding = false;
     private float holdProgress = 0f;
@@ -209,7 +210,9 @@ public class TeleportZone : MonoBehaviour
             if (teleportDelay > 0f)
             {
                 Debug.Log($"🔄 Задержка телепортации: {teleportDelay} секунд");
-                StartCoroutine(DelayedTeleport(teleportDelay));
+                if (_delayedTeleportCoroutine != null)
+                    StopCoroutine(_delayedTeleportCoroutine);
+                _delayedTeleportCoroutine = StartCoroutine(DelayedTeleport(teleportDelay));
             }
             else
             {
@@ -227,7 +230,7 @@ public class TeleportZone : MonoBehaviour
     {
         isTeleporting = true;
         yield return new WaitForSeconds(delay);
-
+        _delayedTeleportCoroutine = null;
         TeleportToSurface();
     }
 
@@ -238,7 +241,9 @@ public class TeleportZone : MonoBehaviour
             isPlayerNearby = false;
             isHolding = false;
             holdProgress = 0f;
-            isTeleporting = false; // Сбрасываем флаг при выходе
+            // Пока идёт задержка телепорта, не сбрасываем isTeleporting — иначе CC/триггер ведут себя нестабильно
+            if (_delayedTeleportCoroutine == null)
+                isTeleporting = false;
             UpdateVisualFeedback();
             Debug.Log("🔄 Игрок отошел от зоны возврата.");
         }
@@ -269,12 +274,14 @@ public class TeleportZone : MonoBehaviour
         if (playerController == null)
         {
             Debug.LogError("❌ TeleportZone: PlayerController не найден!");
+            isTeleporting = false;
             return;
         }
 
         if (!TryResolveExitPosition(out Vector3 targetPosition, out Quaternion targetRotation))
         {
             Debug.LogError("❌ TeleportZone: не удалось определить точку выхода. Проверь returnSpawnPoint и режим exitDestination.");
+            isTeleporting = false;
             return;
         }
 

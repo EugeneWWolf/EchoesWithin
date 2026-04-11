@@ -42,14 +42,19 @@ public class ProceduralDungeonGenerator : MonoBehaviour
     [SerializeField] private bool useSimpleProceduralDungeonExit = true;
     [Tooltip("Префаб выхода (если простой режим выкл): корень с TeleportZone + триггер, или меш — тогда TeleportZone добавится на корень.")]
     [SerializeField] private GameObject dungeonExitZonePrefab;
-    [Tooltip("Триггер простого выхода (компактная зона входа игрока)")]
+    [Tooltip("Простой выход: высота зоны (Y) и при выкл. «как диск» — ширина/глубина (X/Z). Пивот объекта на полу.")]
     [SerializeField] private Vector3 simpleExitTriggerSize = new Vector3(1.5f, 2.2f, 1.2f);
+    [Tooltip("Смещение центра BoxCollider. Y игнорируется, если включено выравнивание по полу — иначе при маленькой высоте бокс уходит под/над пол.")]
     [SerializeField] private Vector3 simpleExitTriggerCenter = new Vector3(0f, 1.1f, 0f);
     [Tooltip("Радиус синего диска на полу")]
     [SerializeField] private float simpleExitMarkerRadius = 0.75f;
     [SerializeField] private Color simpleExitMarkerColor = new Color(0.15f, 0.55f, 1f, 0.92f);
     [SerializeField] private string simpleExitSignText = "Выход";
     [SerializeField] private float simpleExitSignHeight = 1.85f;
+    [Tooltip("Центр триггера по Y = половина высоты: нижняя грань на пивоте (пол). Устраняет провал сквозь пол при смене высоты бокса.")]
+    [SerializeField] private bool simpleExitTriggerBottomAlignedToFloor = true;
+    [Tooltip("X и Z размера триггера = диаметру диска (2× радиус маркера), как визуальный круг.")]
+    [SerializeField] private bool simpleExitTriggerFootprintMatchesMarker = true;
     [Tooltip("Случайная точка на полу (TryGetRandomFloorPosition). Если выкл — точка входа + локальное смещение")]
     [SerializeField] private bool placeDungeonExitAtRandomFloor = true;
     [Tooltip("Когда случайный пол не используется: смещение в локальных осях DungeonEnterSpawn")]
@@ -507,10 +512,26 @@ public class ProceduralDungeonGenerator : MonoBehaviour
         go.transform.SetParent(generatedRoot, false);
         go.transform.SetPositionAndRotation(worldPos, worldRot);
 
+        Vector3 size = simpleExitTriggerSize;
+        if (simpleExitTriggerFootprintMatchesMarker)
+        {
+            float d = Mathf.Max(0.15f, simpleExitMarkerRadius * 2f);
+            size.x = d;
+            size.z = d;
+        }
+
+        size.x = Mathf.Max(0.05f, size.x);
+        size.y = Mathf.Max(0.35f, size.y);
+        size.z = Mathf.Max(0.05f, size.z);
+
+        Vector3 center = simpleExitTriggerBottomAlignedToFloor
+            ? new Vector3(simpleExitTriggerCenter.x, size.y * 0.5f, simpleExitTriggerCenter.z)
+            : simpleExitTriggerCenter;
+
         var box = go.AddComponent<BoxCollider>();
         box.isTrigger = true;
-        box.size = simpleExitTriggerSize;
-        box.center = simpleExitTriggerCenter;
+        box.size = size;
+        box.center = center;
 
         var zone = go.AddComponent<TeleportZone>();
         zone.ApplyProceduralExitVisuals(
