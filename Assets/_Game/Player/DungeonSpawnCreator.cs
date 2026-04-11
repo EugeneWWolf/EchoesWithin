@@ -50,22 +50,24 @@ public class DungeonSpawnCreator : MonoBehaviour
         // Убираем коллайдер у индикатора
         DestroyImmediate(indicator.GetComponent<Collider>());
 
-        // Находим TeleportDoor и назначаем точку спавна
         TeleportDoor teleportDoor = FindObjectOfType<TeleportDoor>();
-        if (teleportDoor != null)
-        {
-            // Используем рефлексию для установки точки спавна
-            var field = typeof(TeleportDoor).GetField("dungeonSpawnPoint", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (field != null)
-            {
-                field.SetValue(teleportDoor, dungeonSpawn.transform);
-                Debug.Log($"✅ Точка спавна в данже создана и назначена: {dungeonSpawn.transform.position}");
-            }
-        }
-        else
+        if (teleportDoor == null)
         {
             Debug.LogError("❌ TeleportDoor не найден! Создайте объект с компонентом TeleportDoor.");
+            return;
         }
+
+        ProceduralDungeonGenerator procedural = FindObjectOfType<ProceduralDungeonGenerator>();
+        if (procedural != null && procedural.DungeonEnterSpawn != null)
+        {
+            teleportDoor.SetDungeonSpawnPoint(procedural.DungeonEnterSpawn);
+            Destroy(dungeonSpawn);
+            Debug.Log($"✅ TeleportDoor: используется вход процедурного данжа ({procedural.DungeonEnterSpawn.position}). Временная точка удалена.");
+            return;
+        }
+
+        teleportDoor.SetDungeonSpawnPoint(dungeonSpawn.transform);
+        Debug.Log($"✅ Точка спавна в данже создана и назначена: {dungeonSpawn.transform.position}");
 
         Debug.Log($"🏗️ Точка спавна в данже создана в позиции: {spawnPosition}");
     }

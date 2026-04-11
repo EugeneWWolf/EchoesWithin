@@ -16,7 +16,10 @@ public class ProceduralDungeonGenerator : MonoBehaviour
 
     [Header("Layout")]
     [SerializeField] [Min(1)] private int roomCount = 12;
+    [Tooltip("Расстояние между пивотами соседних комнат при масштабе префаба 1× (как в ассете). Должно совпадать с реальным шагом дверей — иначе будут щели или наслоение.")]
     [SerializeField] private Vector2 cellSize = new Vector2(11f, 11f);
+    [Tooltip("Уменьши комнаты без щелей: тот же множитель применяется к localScale экземпляра и к шагу сетки. Не трогай только cellSize — иначе пивоты разъедутся с геометрией.")]
+    [SerializeField] [Min(0.01f)] private float roomInstanceUniformScale = 1f;
     [SerializeField] private int randomSeed = 12345;
     [SerializeField] private bool randomizeSeedOnPlay;
 
@@ -26,14 +29,34 @@ public class ProceduralDungeonGenerator : MonoBehaviour
     [Tooltip("Поменять местами Left и Right в префабе относительно соседа по −X / +X")]
     [SerializeField] private bool flipPrefabLeftRight;
 
+    [Header("Точка входа игрока (после Generate)")]
+    [Tooltip("Если в префабе комнаты есть дочерний объект с таким именем — берётся его мир-позиция и поворот (например пустышка «DungeonPlayerSpawn»)")]
+    [SerializeField] private string playerSpawnChildName = "DungeonPlayerSpawn";
+    [Tooltip("Иначе: локальная точка в стартовой комнате (0,0), по умолчанию ближе к центру пола Room.prefab")]
+    [SerializeField] private Vector3 playerSpawnLocalInRoom = new Vector3(3f, 0.5f, -8.5f);
+
+    [Header("Коллизии")]
+    [Tooltip("У префабов StylizedHandPaintedDungeon часто нет коллайдеров — добавляем MeshCollider к каждому MeshFilter")]
+    [SerializeField] private bool addMeshCollidersToRooms = true;
+    [Tooltip("Назначить всей сгенерированной геометрии слой (создай слой в Edit → Project Settings → Tags and Layers, например «Dungeon»)")]
+    [SerializeField] private bool assignDungeonCollisionLayer = true;
+    [SerializeField] private string dungeonCollisionLayerName = "Dungeon";
+
     [Header("Lifecycle")]
     [SerializeField] private bool generateOnAwake = true;
 
     private Transform generatedRoot;
+    private Transform dungeonEnterSpawn;
     private readonly HashSet<Vector2Int> placedCells = new HashSet<Vector2Int>();
 
     public IReadOnlyCollection<Vector2Int> PlacedCells => placedCells;
     public Transform GeneratedRoot => generatedRoot;
+
+    /// <summary>Мир-точка телепорта в стартовую комнату (клетка 0,0). Создаётся при первой генерации.</summary>
+    public Transform DungeonEnterSpawn => dungeonEnterSpawn;
+
+    /// <summary>Слой, назначенный сгенерированным комнатам (для временного excludeLayers при телепорте). −1 если не используется.</summary>
+    public static int DungeonCollisionLayerIndex { get; private set; } = -1;
 
     private void Awake()
     {
@@ -49,6 +72,7 @@ public class ProceduralDungeonGenerator : MonoBehaviour
             Destroy(generatedRoot.GetChild(i).gameObject);
 
         placedCells.Clear();
+        DungeonCollisionLayerIndex = -1;
     }
 
     [ContextMenu("Regenerate Dungeon")]
@@ -74,10 +98,22 @@ public class ProceduralDungeonGenerator : MonoBehaviour
 
         BuildCells(roomCount, placedCells);
 
+        RefreshDungeonCollisionLayerIndex();
+
+        float s = roomInstanceUniformScale;
+        Vector2 step = new Vector2(cellSize.x * s, cellSize.y * s);
+        Vector3 prefabScale = roomPrefab.transform.localScale;
+
+        GameObject startRoomInstance = null;
+
         foreach (Vector2Int cell in placedCells)
         {
-            Vector3 worldPos = transform.position + new Vector3(cell.x * cellSize.x, 0f, cell.y * cellSize.y);
+            Vector3 worldPos = transform.position + new Vector3(cell.x * step.x, 0f, cell.y * step.y);
             GameObject instance = Instantiate(roomPrefab, worldPos, Quaternion.identity, generatedRoot);
+            instance.transform.localScale = prefabScale * s;
+
+            if (cell == Vector2Int.zero)
+                startRoomInstance = instance;
 
             bool neighborPlusZ = placedCells.Contains(cell + new Vector2Int(0, 1));
             bool neighborMinusZ = placedCells.Contains(cell + new Vector2Int(0, -1));
@@ -90,7 +126,15 @@ public class ProceduralDungeonGenerator : MonoBehaviour
                 (neighborPlusX, neighborMinusX) = (neighborMinusX, neighborPlusX);
 
             DungeonRoomEntranceApplier.Apply(instance.transform, neighborPlusZ, neighborMinusZ, neighborPlusX, neighborMinusX);
+
+            if (addMeshCollidersToRooms)
+                DungeonRoomMeshColliders.EnsureOnHierarchy(instance);
+
+            if (assignDungeonCollisionLayer && DungeonCollisionLayerIndex >= 0)
+                SetLayerRecursively(instance.transform, DungeonCollisionLayerIndex);
         }
+
+        UpdateDungeonEnterSpawn(startRoomInstance);
 
         Debug.Log($"ProceduralDungeonGenerator: сгенерировано {placedCells.Count} комнат (seed={seed}).");
     }
@@ -110,6 +154,85 @@ public class ProceduralDungeonGenerator : MonoBehaviour
         var go = new GameObject(GeneratedRootName);
         go.transform.SetParent(transform, false);
         generatedRoot = go.transform;
+    }
+
+    private void EnsureDungeonEnterSpawnTransform()
+    {
+        if (dungeonEnterSpawn != null)
+            return;
+
+        var go = new GameObject("DungeonEnterSpawn");
+        go.transform.SetParent(transform, false);
+        dungeonEnterSpawn = go.transform;
+    }
+
+    private void UpdateDungeonEnterSpawn(GameObject startRoomInstance)
+    {
+        EnsureDungeonEnterSpawnTransform();
+
+        if (startRoomInstance == null)
+        {
+            Debug.LogWarning("ProceduralDungeonGenerator: нет стартовой комнаты (0,0), точка входа не обновлена.");
+            return;
+        }
+
+        Transform roomRoot = startRoomInstance.transform;
+        Transform anchor = null;
+        if (!string.IsNullOrWhiteSpace(playerSpawnChildName))
+            anchor = FindChildTransformByBaseName(roomRoot, playerSpawnChildName.Trim());
+
+        if (anchor != null)
+        {
+            dungeonEnterSpawn.position = anchor.position;
+            dungeonEnterSpawn.rotation = anchor.rotation;
+        }
+        else
+        {
+            dungeonEnterSpawn.position = roomRoot.TransformPoint(playerSpawnLocalInRoom);
+            dungeonEnterSpawn.rotation = roomRoot.rotation;
+        }
+    }
+
+    private static Transform FindChildTransformByBaseName(Transform root, string baseName)
+    {
+        foreach (Transform t in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (StripCloneSuffixStatic(t.name) == baseName)
+                return t;
+        }
+
+        return null;
+    }
+
+    private void RefreshDungeonCollisionLayerIndex()
+    {
+        DungeonCollisionLayerIndex = -1;
+        if (!assignDungeonCollisionLayer || string.IsNullOrWhiteSpace(dungeonCollisionLayerName))
+            return;
+
+        int idx = LayerMask.NameToLayer(dungeonCollisionLayerName.Trim());
+        if (idx < 0)
+        {
+            Debug.LogWarning(
+                $"ProceduralDungeonGenerator: слой «{dungeonCollisionLayerName}» не найден. Добавь слой в Tags & Layers или отключи assignDungeonCollisionLayer.");
+            return;
+        }
+
+        DungeonCollisionLayerIndex = idx;
+    }
+
+    private static void SetLayerRecursively(Transform root, int layer)
+    {
+        foreach (Transform t in root.GetComponentsInChildren<Transform>(true))
+            t.gameObject.layer = layer;
+    }
+
+    private static string StripCloneSuffixStatic(string instanceName)
+    {
+        const string suffix = " (Clone)";
+        if (instanceName.EndsWith(suffix))
+            return instanceName.Substring(0, instanceName.Length - suffix.Length);
+        return instanceName;
     }
 
     private static void BuildCells(int targetCount, HashSet<Vector2Int> outCells)

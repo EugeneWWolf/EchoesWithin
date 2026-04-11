@@ -30,10 +30,14 @@ public static class TeleportCooldownManager
     }
 }
 
+[DefaultExecutionOrder(-50)]
 public class TeleportDoor : MonoBehaviour
 {
     [Header("Teleport Settings")]
+    [Tooltip("Если пусто — берётся точка из ProceduralDungeonGenerator.DungeonEnterSpawn (при наличии в сцене)")]
     [SerializeField] private Transform dungeonSpawnPoint;
+    [Tooltip("Опционально: явная ссылка на генератор. Если пусто, ищется в сцене, когда нет ручной точки спавна")]
+    [SerializeField] private ProceduralDungeonGenerator proceduralDungeon;
     [SerializeField] private float holdTime = 3f; // Больше не используется, оставлено для совместимости
     [SerializeField] private float teleportDelay = 0.5f; // Задержка перед телепортацией при входе в триггер
     [SerializeField] private float teleportCooldown = 2f; // Кулдаун после телепортации (в секундах)
@@ -51,6 +55,10 @@ public class TeleportDoor : MonoBehaviour
     [SerializeField] private string signText = "Вход в данж";
     [Tooltip("Высота подписи")]
     [SerializeField] private float signHeight = 2f;
+
+    [Header("Телепорт в данж (без TeleportPhysicsFix на игроке)")]
+    [SerializeField] private float fallbackCcDisabledSeconds = 0.1f;
+    [SerializeField] private float fallbackIgnoreDungeonAfterCcSeconds = 0.45f;
 
     private bool isPlayerNearby = false;
     private WorldSign worldSign;
@@ -70,6 +78,8 @@ public class TeleportDoor : MonoBehaviour
             Debug.LogError("❌ TeleportDoor: Не найден PlayerController!");
             return;
         }
+
+        ResolveDungeonSpawnFromProcedural();
 
         // Проверяем точку спавна
         if (dungeonSpawnPoint == null)
@@ -122,6 +132,27 @@ public class TeleportDoor : MonoBehaviour
         }
 
         Debug.Log($"✅ TeleportDoor инициализирован. Задержка телепортации: {teleportDelay} секунд, кулдаун: {teleportCooldown} секунд");
+    }
+
+    /// <summary>Если ручная точка не задана — используем вход в процедурный данж.</summary>
+    private void ResolveDungeonSpawnFromProcedural()
+    {
+        if (dungeonSpawnPoint != null)
+            return;
+
+        ProceduralDungeonGenerator gen = proceduralDungeon != null
+            ? proceduralDungeon
+            : FindObjectOfType<ProceduralDungeonGenerator>();
+
+        if (gen == null)
+            return;
+
+        Transform enter = gen.DungeonEnterSpawn;
+        if (enter == null)
+            return;
+
+        dungeonSpawnPoint = enter;
+        Debug.Log($"✅ TeleportDoor: точка спавна взята из процедурного данжа ({enter.position}).");
     }
 
     private void SetSignProperties(WorldSign sign, string text, float height)
@@ -243,98 +274,74 @@ public class TeleportDoor : MonoBehaviour
 
     private void TeleportToDungeon()
     {
+        StartCoroutine(TeleportToDungeonCoroutine());
+    }
+
+    private IEnumerator TeleportToDungeonCoroutine()
+    {
+        if (dungeonSpawnPoint == null)
+            ResolveDungeonSpawnFromProcedural();
+
         if (dungeonSpawnPoint == null)
         {
             Debug.LogError("❌ TeleportDoor: Не назначена точка спавна в данже!");
-            return;
+            isTeleporting = false;
+            yield break;
         }
 
         if (playerController == null)
         {
             Debug.LogError("❌ TeleportDoor: PlayerController не найден!");
-            return;
+            isTeleporting = false;
+            yield break;
         }
 
         Debug.Log($"🚪 Телепортируем игрока из {playerController.transform.position} в {dungeonSpawnPoint.position}");
 
-        // Определяем позицию для телепортации
-        Vector3 teleportPosition;
-        if (dungeonSpawnPoint != null && dungeonSpawnPoint.position.y < 0)
-        {
-            // Используем назначенную точку, если она под землей
-            teleportPosition = dungeonSpawnPoint.position;
-            Debug.Log($"✅ Используем назначенную точку спавна: {teleportPosition}");
-        }
-        else
-        {
-            // Создаем точку под землей относительно двери
-            teleportPosition = transform.position;
-            teleportPosition.y = -10f; // Принудительно под землю
-            Debug.LogWarning($"⚠ Создаем точку под землей: {teleportPosition}");
-        }
+        Vector3 teleportPosition = dungeonSpawnPoint.position;
+        Quaternion teleportRotation = dungeonSpawnPoint.rotation;
 
-        // Используем TeleportPhysicsFix если доступен
         TeleportPhysicsFix physicsFix = playerController.GetComponent<TeleportPhysicsFix>();
         if (physicsFix != null)
         {
             Debug.Log("🔧 Используем TeleportPhysicsFix для телепортации");
-            physicsFix.TeleportWithPhysicsFix(teleportPosition);
+            yield return physicsFix.DungeonTeleportSequence(teleportPosition, teleportRotation);
         }
         else
         {
-            // Стандартная телепортация с отключением CharacterController
-            CharacterController characterController = playerController.GetComponent<CharacterController>();
-            bool wasEnabled = characterController != null ? characterController.enabled : false;
-
-            if (characterController != null)
-            {
-                characterController.enabled = false;
-                Debug.Log("🔧 CharacterController отключен для телепортации");
-            }
-
-            // Телепортируем игрока
-            playerController.transform.position = teleportPosition;
-
-            if (characterController != null)
-            {
-                characterController.enabled = wasEnabled;
-                Debug.Log("🔧 CharacterController включен обратно");
-            }
+            CharacterController cc = playerController.GetComponent<CharacterController>();
+            Rigidbody rb = playerController.GetComponent<Rigidbody>();
+            yield return DungeonTeleportCollisionBypass.CoTeleport(
+                playerController.transform,
+                cc,
+                rb,
+                teleportPosition,
+                teleportRotation,
+                fallbackCcDisabledSeconds,
+                fallbackIgnoreDungeonAfterCcSeconds,
+                true);
         }
 
-        if (dungeonSpawnPoint != null)
-        {
-            playerController.transform.rotation = dungeonSpawnPoint.rotation;
-        }
-
-        // Проверяем результат телепортации
         Debug.Log($"✅ Игрок телепортирован в позицию: {playerController.transform.position}");
 
-        // Дополнительная проверка через небольшую задержку
         StartCoroutine(VerifyTeleportation(0.1f));
 
-        // Сбрасываем состояние
         isHolding = false;
         holdProgress = 0f;
         isTeleporting = false;
         UpdateVisualFeedback();
 
-        // Регистрируем телепортацию в общем менеджере кулдауна
         TeleportCooldownManager.RegisterTeleport();
         Debug.Log($"⏳ TeleportDoor: Кулдаун установлен на {teleportCooldown} секунд");
 
-        // Уведомляем PlayerInteraction о завершении
         if (playerController != null)
         {
-            // Получаем PlayerInteraction через рефлексию
             var interactionField = typeof(PlayerController).GetField("interaction", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             if (interactionField != null)
             {
                 var interaction = interactionField.GetValue(playerController) as PlayerInteraction;
                 if (interaction != null)
-                {
                     interaction.ResetHoldState();
-                }
             }
         }
 

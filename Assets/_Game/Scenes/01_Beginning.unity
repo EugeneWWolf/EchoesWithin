@@ -5550,7 +5550,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 0.3
-  far clip plane: 20
+  far clip plane: 50
   field of view: 60
   orthographic: 0
   orthographic size: 5
@@ -16004,10 +16004,16 @@ MonoBehaviour:
   roomPrefab: {fileID: 6055238445545915388, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
   roomCount: 12
   cellSize: {x: 24, y: 24}
+  roomInstanceUniformScale: 0.4
   randomSeed: 12345
   randomizeSeedOnPlay: 0
   flipPrefabUpDown: 0
   flipPrefabLeftRight: 0
+  playerSpawnChildName: DungeonPlayerSpawn
+  playerSpawnLocalInRoom: {x: 3, y: 0, z: -8.5}
+  addMeshCollidersToRooms: 1
+  assignDungeonCollisionLayer: 1
+  dungeonCollisionLayerName: Dungeon
   generateOnAwake: 1
 --- !u!1 &1012672669
 GameObject:
@@ -19629,28 +19635,11 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1200200857}
   m_CullTransparentMesh: 1
---- !u!1 &1204843139 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 6055238445545915388, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
-  m_PrefabInstance: {fileID: 7861246421992711161}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &1204843140 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7688081225950845920, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
   m_PrefabInstance: {fileID: 7861246421992711161}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &1204843141
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1204843139}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d79d0cb9f0a1bc04b8c43580f564e02f, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::RoomBehaviour
 --- !u!1 &1207441376
 GameObject:
   m_ObjectHideFlags: 0
@@ -28576,7 +28565,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d20ba2353437c884ba9870ef85b32fed, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TeleportDoor
-  dungeonSpawnPoint: {fileID: 766981829}
+  dungeonSpawnPoint: {fileID: 0}
+  proceduralDungeon: {fileID: 0}
   holdTime: 3
   teleportDelay: 0.5
   teleportCooldown: 10
@@ -28589,6 +28579,8 @@ MonoBehaviour:
   showSign: 1
   signText: "\u0412\u0445\u043E\u0434 \u0432 \u0434\u0430\u043D\u0436"
   signHeight: 2.5
+  fallbackCcDisabledSeconds: 0.1
+  fallbackIgnoreDungeonAfterCcSeconds: 0.45
 --- !u!65 &1715401053
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -36480,6 +36472,18 @@ PrefabInstance:
       value: 180
       objectReference: {fileID: 0}
     - target: {fileID: 7688081225950845920, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7688081225950845920, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7688081225950845920, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7688081225950845920, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
       propertyPath: m_LocalPosition.x
       value: -6.01007
       objectReference: {fileID: 0}
@@ -36545,10 +36549,7 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 7688081225950845920, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
       insertIndex: 0
       addedObject: {fileID: 1431547314}
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 6055238445545915388, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1204843141}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

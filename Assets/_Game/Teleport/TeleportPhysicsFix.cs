@@ -8,6 +8,11 @@ public class TeleportPhysicsFix : MonoBehaviour
     [SerializeField] private bool disableGravity = true;
     [SerializeField] private bool disableCollision = true;
 
+    [Header("Телепорт в данж")]
+    [SerializeField] private float teleportCcDisabledSeconds = 0.1f;
+    [Tooltip("После включения CharacterController столько секунд игнорируем коллизию со слоем данжа (проход сквозь крышу/оболочку)")]
+    [SerializeField] private float ignoreDungeonLayerAfterCcReenabledSeconds = 0.45f;
+
     private CharacterController characterController;
     private Rigidbody rigidbody;
     private bool originalGravity;
@@ -66,45 +71,36 @@ public class TeleportPhysicsFix : MonoBehaviour
         Debug.Log("🔧 Физика восстановлена");
     }
 
-    // Метод для принудительной телепортации с исправлением физики
     public void TeleportWithPhysicsFix(Vector3 position)
     {
-        StartCoroutine(TeleportWithFix(position));
+        TeleportWithPhysicsFix(position, transform.rotation);
     }
 
-    private IEnumerator TeleportWithFix(Vector3 position)
+    public void TeleportWithPhysicsFix(Vector3 position, Quaternion rotation)
+    {
+        StartCoroutine(TeleportWithFix(position, rotation));
+    }
+
+    private IEnumerator TeleportWithFix(Vector3 position, Quaternion rotation)
     {
         Debug.Log($"🔧 Телепортация с исправлением физики в: {position}");
 
-        // Отключаем физику
-        if (characterController != null)
-        {
-            characterController.enabled = false;
-        }
-
-        if (rigidbody != null)
-        {
-            rigidbody.useGravity = false;
-            rigidbody.linearVelocity = Vector3.zero;
-        }
-
-        // Телепортируем
-        transform.position = position;
-
-        // Ждем немного
-        yield return new WaitForSeconds(0.1f);
-
-        // Включаем физику обратно
-        if (characterController != null)
-        {
-            characterController.enabled = true;
-        }
-
-        if (rigidbody != null)
-        {
-            rigidbody.useGravity = true;
-        }
+        yield return DungeonTeleportCollisionBypass.CoTeleport(
+            transform,
+            characterController,
+            rigidbody,
+            position,
+            rotation,
+            teleportCcDisabledSeconds,
+            ignoreDungeonLayerAfterCcReenabledSeconds,
+            true);
 
         Debug.Log($"✅ Телепортация завершена: {transform.position}");
+    }
+
+    /// <summary>Корутина для TeleportDoor: ждать завершения телепорта на этом объекте.</summary>
+    public IEnumerator DungeonTeleportSequence(Vector3 position, Quaternion rotation)
+    {
+        yield return TeleportWithFix(position, rotation);
     }
 }
