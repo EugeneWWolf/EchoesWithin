@@ -35,9 +35,37 @@ public class ProceduralDungeonGenerator : MonoBehaviour
     [Tooltip("Иначе: локальная точка в стартовой комнате (0,0), по умолчанию ближе к центру пола Room.prefab")]
     [SerializeField] private Vector3 playerSpawnLocalInRoom = new Vector3(3f, 0.5f, -8.5f);
 
+    [Header("Зона выхода из данжа")]
+    [Tooltip("После Generate создать зону выхода (простую или из префаба) с TeleportZone")]
+    [SerializeField] private bool spawnDungeonExitPrefabAfterGenerate;
+    [Tooltip("Если включено — спавнится только пустышка: TeleportZone + синий диск на полу + надпись (без префаба двери). Игнорирует dungeonExitZonePrefab.")]
+    [SerializeField] private bool useSimpleProceduralDungeonExit = true;
+    [Tooltip("Префаб выхода (если простой режим выкл): корень с TeleportZone + триггер, или меш — тогда TeleportZone добавится на корень.")]
+    [SerializeField] private GameObject dungeonExitZonePrefab;
+    [Tooltip("Триггер простого выхода (компактная зона входа игрока)")]
+    [SerializeField] private Vector3 simpleExitTriggerSize = new Vector3(1.5f, 2.2f, 1.2f);
+    [SerializeField] private Vector3 simpleExitTriggerCenter = new Vector3(0f, 1.1f, 0f);
+    [Tooltip("Радиус синего диска на полу")]
+    [SerializeField] private float simpleExitMarkerRadius = 0.75f;
+    [SerializeField] private Color simpleExitMarkerColor = new Color(0.15f, 0.55f, 1f, 0.92f);
+    [SerializeField] private string simpleExitSignText = "Выход";
+    [SerializeField] private float simpleExitSignHeight = 1.85f;
+    [Tooltip("Случайная точка на полу (TryGetRandomFloorPosition). Если выкл — точка входа + локальное смещение")]
+    [SerializeField] private bool placeDungeonExitAtRandomFloor = true;
+    [Tooltip("Когда случайный пол не используется: смещение в локальных осях DungeonEnterSpawn")]
+    [SerializeField] private Vector3 exitZoneOffsetLocalFromEnterSpawn = new Vector3(4f, 0f, -5f);
+    [Tooltip("Куда вести игрока после выхода (TeleportZone). Если пусто — ищется объект с именем ReturnSpawnZone в сцене.")]
+    [SerializeField] private Transform dungeonSurfaceReturnPoint;
+    [Tooltip("Если в префабе выхода нет TeleportZone (например только дверь) — добавляется на корень с триггером этого размера.")]
+    [SerializeField] private Vector3 runtimeExitTriggerSize = new Vector3(2.6f, 3.2f, 1.8f);
+    [SerializeField] private Vector3 runtimeExitTriggerCenter = new Vector3(0f, 1.55f, 0f);
+
     [Header("Коллизии")]
     [Tooltip("У префабов StylizedHandPaintedDungeon часто нет коллайдеров — добавляем MeshCollider к каждому MeshFilter")]
     [SerializeField] private bool addMeshCollidersToRooms = true;
+    [Tooltip("Не ставить MeshCollider на меши под этими родителями (имя без « (Clone)»). В Room.prefab потолок — под «Cellar»; иначе луч TryGetRandomFloorPosition бьёт в верх потолка как в «пол».")]
+    [SerializeField] private bool skipMeshCollidersUnderNamedAncestors = true;
+    [SerializeField] private string[] skipMeshColliderAncestorNames = { "Cellar", "Ceiling" };
     [Tooltip("Назначить всей сгенерированной геометрии слой (создай слой в Edit → Project Settings → Tags and Layers, например «Dungeon»)")]
     [SerializeField] private bool assignDungeonCollisionLayer = true;
     [SerializeField] private string dungeonCollisionLayerName = "Dungeon";
@@ -45,7 +73,16 @@ public class ProceduralDungeonGenerator : MonoBehaviour
     [Header("Lifecycle")]
     [SerializeField] private bool generateOnAwake = true;
 
+    [Header("Случайная точка в данже (TeleportZone)")]
+    [Tooltip("Какие слои участвуют в Raycast «вниз» при поиске пола. Должен включать слой пола/данжа.")]
+    [SerializeField] private LayerMask randomFloorRaycastMask = ~0;
+    [Tooltip("Насколько выше верхней границы bounds комнат начинать луч")]
+    [SerializeField] private float randomFloorRaycastStartAboveBounds = 2f;
+    [Tooltip("Минимум dot(нормаль, вверх) для «пола» при выборе попадания среди нескольких коллайдеров по одному лучу")]
+    [SerializeField] [Range(0.2f, 0.99f)] private float randomFloorMinUpNormalDot = 0.45f;
+
     private Transform generatedRoot;
+    private RaycastHit[] randomFloorRaycastHits;
     private Transform dungeonEnterSpawn;
     private readonly HashSet<Vector2Int> placedCells = new HashSet<Vector2Int>();
 
@@ -128,13 +165,23 @@ public class ProceduralDungeonGenerator : MonoBehaviour
             DungeonRoomEntranceApplier.Apply(instance.transform, neighborPlusZ, neighborMinusZ, neighborPlusX, neighborMinusX);
 
             if (addMeshCollidersToRooms)
-                DungeonRoomMeshColliders.EnsureOnHierarchy(instance);
+            {
+                if (skipMeshCollidersUnderNamedAncestors && skipMeshColliderAncestorNames != null &&
+                    skipMeshColliderAncestorNames.Length > 0)
+                    DungeonRoomMeshColliders.EnsureOnHierarchy(instance, skipMeshColliderAncestorNames);
+                else
+                    DungeonRoomMeshColliders.EnsureOnHierarchy(instance);
+            }
 
             if (assignDungeonCollisionLayer && DungeonCollisionLayerIndex >= 0)
                 SetLayerRecursively(instance.transform, DungeonCollisionLayerIndex);
         }
 
         UpdateDungeonEnterSpawn(startRoomInstance);
+
+        if (spawnDungeonExitPrefabAfterGenerate &&
+            (useSimpleProceduralDungeonExit || dungeonExitZonePrefab != null))
+            SpawnDungeonExitZone(startRoomInstance);
 
         Debug.Log($"ProceduralDungeonGenerator: сгенерировано {placedCells.Count} комнат (seed={seed}).");
     }
@@ -305,6 +352,199 @@ public class ProceduralDungeonGenerator : MonoBehaviour
 
         if (outCells.Count < targetCount)
             Debug.LogWarning($"ProceduralDungeonGenerator: удалось разместить только {outCells.Count} из {targetCount} комнат.");
+    }
+
+    /// <summary>
+    /// Случайная точка на полу внутри сгенерированного данжа (по объединённым bounds рендереров, луч сверху вниз).
+    /// </summary>
+    public bool TryGetRandomFloorPosition(out Vector3 worldPosition, out Quaternion worldRotation, int maxAttempts = 40)
+    {
+        worldPosition = default;
+        worldRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+
+        if (generatedRoot == null || generatedRoot.childCount == 0)
+            return false;
+
+        if (!TryComputeRenderersWorldBounds(generatedRoot, out Bounds bounds))
+            return false;
+
+        int mask = randomFloorRaycastMask.value == 0 ? Physics.DefaultRaycastLayers : randomFloorRaycastMask.value;
+        float rayLength = bounds.size.y + randomFloorRaycastStartAboveBounds + 8f;
+        EnsureRandomFloorHitBuffer();
+
+        for (int i = 0; i < maxAttempts; i++)
+        {
+            float x = Random.Range(bounds.min.x, bounds.max.x);
+            float z = Random.Range(bounds.min.z, bounds.max.z);
+            Vector3 origin = new Vector3(x, bounds.max.y + randomFloorRaycastStartAboveBounds, z);
+            int count = Physics.RaycastNonAlloc(
+                origin, Vector3.down, randomFloorRaycastHits, rayLength, mask, QueryTriggerInteraction.Ignore);
+            if (TryPickFloorHit(randomFloorRaycastHits, count, randomFloorMinUpNormalDot, out RaycastHit floorHit))
+            {
+                worldPosition = floorHit.point + Vector3.up * 0.06f;
+                return true;
+            }
+        }
+
+        worldPosition = new Vector3(bounds.center.x, bounds.min.y + 0.5f, bounds.center.z);
+        return true;
+    }
+
+    private void SpawnDungeonExitZone(GameObject startRoomInstance)
+    {
+        Vector3 pos;
+        Quaternion rot;
+
+        if (placeDungeonExitAtRandomFloor)
+        {
+            if (!TryGetRandomFloorPosition(out pos, out rot, 48))
+                TryExitFallbackNearEnter(startRoomInstance, out pos, out rot);
+        }
+        else
+            TryExitFallbackNearEnter(startRoomInstance, out pos, out rot);
+
+        GameObject exitObj = useSimpleProceduralDungeonExit
+            ? CreateSimpleProceduralExitZone(pos, rot)
+            : Instantiate(dungeonExitZonePrefab, pos, rot, generatedRoot);
+
+        // Простой выход всегда на Default: иначе после SetLayerRecursively(..., Dungeon) маркер/текст не рисуются,
+        // если камера не включает слой Dungeon.
+        if (useSimpleProceduralDungeonExit)
+            SetLayerRecursively(exitObj.transform, 0);
+        else if (assignDungeonCollisionLayer && DungeonCollisionLayerIndex >= 0)
+            SetLayerRecursively(exitObj.transform, DungeonCollisionLayerIndex);
+
+        ConfigureSpawnedDungeonExit(exitObj);
+    }
+
+    private GameObject CreateSimpleProceduralExitZone(Vector3 worldPos, Quaternion worldRot)
+    {
+        var go = new GameObject("DungeonExit_Simple");
+        go.transform.SetParent(generatedRoot, false);
+        go.transform.SetPositionAndRotation(worldPos, worldRot);
+
+        var box = go.AddComponent<BoxCollider>();
+        box.isTrigger = true;
+        box.size = simpleExitTriggerSize;
+        box.center = simpleExitTriggerCenter;
+
+        var zone = go.AddComponent<TeleportZone>();
+        zone.ApplyProceduralExitVisuals(
+            true,
+            simpleExitMarkerRadius,
+            simpleExitMarkerColor,
+            true,
+            simpleExitSignText,
+            simpleExitSignHeight);
+
+        return go;
+    }
+
+    private void ConfigureSpawnedDungeonExit(GameObject exitRoot)
+    {
+        if (exitRoot == null)
+            return;
+
+        TeleportZone zone = exitRoot.GetComponent<TeleportZone>();
+        if (zone == null)
+            zone = exitRoot.GetComponentInChildren<TeleportZone>(true);
+
+        if (zone == null)
+        {
+            BoxCollider box = exitRoot.GetComponent<BoxCollider>();
+            if (box == null)
+                box = exitRoot.AddComponent<BoxCollider>();
+            box.isTrigger = true;
+            box.size = runtimeExitTriggerSize;
+            box.center = runtimeExitTriggerCenter;
+            zone = exitRoot.AddComponent<TeleportZone>();
+        }
+
+        Transform surface = dungeonSurfaceReturnPoint != null
+            ? dungeonSurfaceReturnPoint
+            : FindReturnSpawnZoneTransform();
+        if (surface != null)
+            zone.SetReturnSpawnPoint(surface);
+        else
+            Debug.LogWarning(
+                "ProceduralDungeonGenerator: не задан dungeonSurfaceReturnPoint и в сцене нет объекта «ReturnSpawnZone» — TeleportZone не сможет вернуть игрока на поверхность.");
+    }
+
+    private static Transform FindReturnSpawnZoneTransform()
+    {
+        GameObject found = GameObject.Find("ReturnSpawnZone");
+        return found != null ? found.transform : null;
+    }
+
+    private void TryExitFallbackNearEnter(GameObject startRoomInstance, out Vector3 pos, out Quaternion rot)
+    {
+        if (dungeonEnterSpawn != null)
+        {
+            pos = dungeonEnterSpawn.TransformPoint(exitZoneOffsetLocalFromEnterSpawn);
+            rot = dungeonEnterSpawn.rotation;
+            return;
+        }
+
+        if (startRoomInstance != null)
+        {
+            pos = startRoomInstance.transform.TransformPoint(exitZoneOffsetLocalFromEnterSpawn);
+            rot = startRoomInstance.transform.rotation;
+            return;
+        }
+
+        pos = transform.position + exitZoneOffsetLocalFromEnterSpawn;
+        rot = Quaternion.identity;
+    }
+
+    private static bool TryComputeRenderersWorldBounds(Transform root, out Bounds merged)
+    {
+        merged = default;
+        bool any = false;
+        foreach (Renderer r in root.GetComponentsInChildren<Renderer>(true))
+        {
+            if (!any)
+            {
+                merged = r.bounds;
+                any = true;
+            }
+            else
+                merged.Encapsulate(r.bounds);
+        }
+
+        return any && merged.size.sqrMagnitude > 0.0001f;
+    }
+
+    private void EnsureRandomFloorHitBuffer()
+    {
+        if (randomFloorRaycastHits == null || randomFloorRaycastHits.Length < 32)
+            randomFloorRaycastHits = new RaycastHit[32];
+    }
+
+    /// <summary>
+    /// Среди попаданий луча вниз выбирает самую низкую точку с «половой» нормалью (исключает верх декора / потолок с той же нормалью вверх, если ниже есть второй слой).
+    /// </summary>
+    private static bool TryPickFloorHit(RaycastHit[] hits, int count, float minUpNormalDot, out RaycastHit best)
+    {
+        best = default;
+        if (hits == null || count <= 0)
+            return false;
+
+        bool any = false;
+        float bestY = float.PositiveInfinity;
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit h = hits[i];
+            if (h.normal.y < minUpNormalDot)
+                continue;
+            if (!any || h.point.y < bestY)
+            {
+                any = true;
+                bestY = h.point.y;
+                best = h;
+            }
+        }
+
+        return any;
     }
 }
 

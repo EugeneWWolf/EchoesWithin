@@ -6,6 +6,15 @@ public class TeleportZone : MonoBehaviour
 {
     [Header("Teleport Settings")]
     [SerializeField] private Transform returnSpawnPoint;
+    [Header("Куда вести после выхода")]
+    [SerializeField] private DungeonReturnExitMode exitDestination = DungeonReturnExitMode.FixedReturnSpawn;
+    [Tooltip("Для RandomFloorInProceduralDungeon. Если пусто — ищется в сцене.")]
+    [SerializeField] private ProceduralDungeonGenerator proceduralDungeon;
+    [Tooltip("Для RandomHorizontalAroundReturnSpawn — радиус в XZ от returnSpawnPoint")]
+    [SerializeField] private float randomSurfaceHorizontalRadius = 8f;
+    [SerializeField] private float randomSurfaceRaycastStartHeight = 40f;
+    [SerializeField] private LayerMask randomSurfaceGroundMask = 1;
+
     [SerializeField] private float holdTime = 3f; // Больше не используется, оставлено для совместимости
     [SerializeField] private float teleportDelay = 0.5f; // Задержка перед телепортацией при входе в триггер
     [SerializeField] private float teleportCooldown = 2f; // Кулдаун после телепортации (в секундах)
@@ -16,6 +25,15 @@ public class TeleportZone : MonoBehaviour
     [SerializeField] private Material progressMaterial;
     [SerializeField] private TeleportProgressUI progressUI;
 
+    [Header("Маркер на полу")]
+    [Tooltip("Тонкий диск под зоной (луч вниз от позиции зоны), чтобы выход было видно на земле")]
+    [SerializeField] private bool showGroundMarker = true;
+    [SerializeField] private float groundMarkerRadius = 1.75f;
+    [SerializeField] private float groundMarkerRaycastUp = 4f;
+    [SerializeField] private float groundMarkerRaycastDown = 25f;
+    [SerializeField] private LayerMask groundMarkerRaycastMask = ~0;
+    [SerializeField] private Color groundMarkerColor = new Color(0.2f, 0.85f, 1f, 0.9f);
+
     [Header("World Sign")]
     [Tooltip("Показывать подпись над зоной телепортации")]
     [SerializeField] private bool showSign = true;
@@ -23,6 +41,8 @@ public class TeleportZone : MonoBehaviour
     [SerializeField] private string signText = "Выход из данжа";
     [Tooltip("Высота подписи")]
     [SerializeField] private float signHeight = 2f;
+
+    private bool _lastTeleportKeptPlayerUnderground;
 
     private bool isPlayerNearby = false;
     private WorldSign worldSign;
@@ -35,13 +55,10 @@ public class TeleportZone : MonoBehaviour
 
     private void Start()
     {
-        // Находим игрока
-        playerController = FindFirstObjectByType<PlayerController>();
+        // Игрок может появиться позже генератора данжа — не прерываем Start, иначе не создаются маркер и подпись.
+        TryCachePlayerController();
         if (playerController == null)
-        {
-            Debug.LogError("❌ TeleportZone: Не найден PlayerController!");
-            return;
-        }
+            Debug.LogWarning("TeleportZone: PlayerController не найден на Start — визуалы зоны всё равно создаются; игрок будет найден при телепорте.");
 
         // Убеждаемся, что есть триггер коллайдер
         Collider collider = GetComponent<Collider>();
@@ -77,7 +94,47 @@ public class TeleportZone : MonoBehaviour
             SetSignProperties(worldSign, signText, signHeight);
         }
 
+        if (showGroundMarker)
+            CreateGroundExitMarker();
+
         Debug.Log($"✅ TeleportZone инициализирован. Задержка телепортации: {teleportDelay} секунд, кулдаун: {teleportCooldown} секунд");
+    }
+
+    private void CreateGroundExitMarker()
+    {
+        int mask = groundMarkerRaycastMask.value == 0 ? Physics.DefaultRaycastLayers : groundMarkerRaycastMask.value;
+        Vector3 origin = transform.position + Vector3.up * groundMarkerRaycastUp;
+        Vector3 discWorld = transform.position;
+        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, groundMarkerRaycastUp + groundMarkerRaycastDown, mask,
+                QueryTriggerInteraction.Ignore))
+            discWorld = hit.point + Vector3.up * 0.03f;
+
+        GameObject disc = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        disc.name = "ExitGroundMarker";
+        Destroy(disc.GetComponent<Collider>());
+
+        disc.transform.SetParent(transform, false);
+        disc.transform.localPosition = transform.InverseTransformPoint(discWorld);
+        disc.transform.localRotation = Quaternion.identity;
+
+        float r = Mathf.Max(0.25f, groundMarkerRadius);
+        Vector3 ls = transform.lossyScale;
+        disc.transform.localScale = new Vector3(
+            (r * 2f) / Mathf.Max(0.0001f, ls.x),
+            0.05f / Mathf.Max(0.0001f, ls.y),
+            (r * 2f) / Mathf.Max(0.0001f, ls.z));
+
+        Renderer rend = disc.GetComponent<Renderer>();
+        if (rend != null)
+        {
+            Shader sh = Shader.Find("Universal Render Pipeline/Lit");
+            if (sh == null)
+                sh = Shader.Find("Standard");
+            Material mat = new Material(sh) { color = groundMarkerColor, name = "ExitMarker (runtime)" };
+            if (mat.HasProperty("_BaseColor"))
+                mat.SetColor("_BaseColor", groundMarkerColor);
+            rend.sharedMaterial = mat;
+        }
     }
 
     private void SetSignProperties(WorldSign sign, string text, float height)
@@ -85,6 +142,32 @@ public class TeleportZone : MonoBehaviour
         sign.signText = text;
         sign.heightOffset = height;
         sign.SetText(text);
+    }
+
+    /// <summary>
+    /// Вызвать сразу после AddComponent, до первого кадра Start — задаёт маркер и подпись (процедурный выход без префаба).
+    /// </summary>
+    public void ApplyProceduralExitVisuals(
+        bool marker,
+        float markerRadius,
+        Color markerColor,
+        bool sign,
+        string text,
+        float heightOffset)
+    {
+        showGroundMarker = marker;
+        groundMarkerRadius = Mathf.Max(0.15f, markerRadius);
+        groundMarkerColor = markerColor;
+        showSign = sign;
+        if (!string.IsNullOrEmpty(text))
+            signText = text;
+        signHeight = Mathf.Max(0.25f, heightOffset);
+    }
+
+    private void TryCachePlayerController()
+    {
+        if (playerController == null)
+            playerController = FindFirstObjectByType<PlayerController>();
     }
 
     private void Update()
@@ -105,13 +188,11 @@ public class TeleportZone : MonoBehaviour
     {
         if (IsPlayer(other) && !isTeleporting)
         {
-            // Проверяем, что игрок находится под землей (Y < 0)
-            // Это предотвращает телепортацию, когда игрок на поверхности
-            if (playerController != null && playerController.transform.position.y >= 0)
-            {
-                Debug.Log($"🔄 TeleportZone: Игрок на поверхности (Y={playerController.transform.position.y:F2}), телепортация не выполняется");
-                return;
-            }
+            TryCachePlayerController();
+            if (playerController == null)
+                playerController = other.GetComponentInParent<PlayerController>();
+
+            // Не используем мировой Y=0: данж может быть целиком выше нуля — иначе выход из данжа никогда не срабатывает.
 
             // Проверяем кулдаун через общий менеджер
             if (!TeleportCooldownManager.CanTeleport())
@@ -146,14 +227,6 @@ public class TeleportZone : MonoBehaviour
     {
         isTeleporting = true;
         yield return new WaitForSeconds(delay);
-
-        // Проверяем еще раз, что игрок все еще под землей перед телепортацией
-        if (playerController != null && playerController.transform.position.y >= 0)
-        {
-            Debug.Log($"🔄 TeleportZone: Игрок поднялся на поверхность во время задержки (Y={playerController.transform.position.y:F2}), телепортация отменена");
-            isTeleporting = false;
-            yield break;
-        }
 
         TeleportToSurface();
     }
@@ -192,50 +265,42 @@ public class TeleportZone : MonoBehaviour
 
     private void TeleportToSurface()
     {
-        if (returnSpawnPoint == null)
-        {
-            Debug.LogError("❌ TeleportZone: Не назначена точка возврата на поверхность!");
-            return;
-        }
-
+        TryCachePlayerController();
         if (playerController == null)
         {
             Debug.LogError("❌ TeleportZone: PlayerController не найден!");
             return;
         }
 
-        Debug.Log($"🔄 Телепортируем игрока из {playerController.transform.position} в {returnSpawnPoint.position}");
+        if (!TryResolveExitPosition(out Vector3 targetPosition, out Quaternion targetRotation))
+        {
+            Debug.LogError("❌ TeleportZone: не удалось определить точку выхода. Проверь returnSpawnPoint и режим exitDestination.");
+            return;
+        }
 
-        // Используем TeleportPhysicsFix если доступен
+        Debug.Log($"🔄 Телепортируем игрока из {playerController.transform.position} в {targetPosition}");
+
         TeleportPhysicsFix physicsFix = playerController.GetComponent<TeleportPhysicsFix>();
         if (physicsFix != null)
         {
             Debug.Log("🔧 Используем TeleportPhysicsFix для возврата");
-            physicsFix.TeleportWithPhysicsFix(returnSpawnPoint.position);
+            physicsFix.TeleportWithPhysicsFix(targetPosition, targetRotation);
         }
         else
         {
-            // Стандартная телепортация с отключением CharacterController
             CharacterController characterController = playerController.GetComponent<CharacterController>();
-            bool wasEnabled = characterController != null ? characterController.enabled : false;
+            bool wasEnabled = characterController != null && characterController.enabled;
 
             if (characterController != null)
-            {
                 characterController.enabled = false;
-                Debug.Log("🔧 CharacterController отключен для возврата");
-            }
 
-            // Телепортируем игрока
-            playerController.transform.position = returnSpawnPoint.position;
+            playerController.transform.position = targetPosition;
 
             if (characterController != null)
-            {
                 characterController.enabled = wasEnabled;
-                Debug.Log("🔧 CharacterController включен обратно");
-            }
-        }
 
-        playerController.transform.rotation = returnSpawnPoint.rotation;
+            playerController.transform.rotation = targetRotation;
+        }
 
         // Проверяем результат телепортации
         Debug.Log($"✅ Игрок возвращен в позицию: {playerController.transform.position}");
@@ -269,6 +334,79 @@ public class TeleportZone : MonoBehaviour
         }
 
         Debug.Log("🔄 Возврат на поверхность завершен!");
+    }
+
+    private bool TryResolveExitPosition(out Vector3 position, out Quaternion rotation)
+    {
+        position = default;
+        rotation = Quaternion.identity;
+        _lastTeleportKeptPlayerUnderground = false;
+
+        switch (exitDestination)
+        {
+            case DungeonReturnExitMode.FixedReturnSpawn:
+                if (returnSpawnPoint == null)
+                    return false;
+                position = returnSpawnPoint.position;
+                rotation = returnSpawnPoint.rotation;
+                return true;
+
+            case DungeonReturnExitMode.RandomHorizontalAroundReturnSpawn:
+                if (returnSpawnPoint == null)
+                    return false;
+                if (!TryRandomPointOnGroundAround(returnSpawnPoint.position, randomSurfaceHorizontalRadius,
+                        randomSurfaceRaycastStartHeight, randomSurfaceGroundMask, out position))
+                {
+                    position = returnSpawnPoint.position;
+                }
+                rotation = returnSpawnPoint.rotation;
+                return true;
+
+            case DungeonReturnExitMode.RandomFloorInProceduralDungeon:
+            {
+                ProceduralDungeonGenerator gen = proceduralDungeon != null
+                    ? proceduralDungeon
+                    : FindFirstObjectByType<ProceduralDungeonGenerator>();
+                if (gen != null && gen.TryGetRandomFloorPosition(out position, out rotation))
+                {
+                    _lastTeleportKeptPlayerUnderground = true;
+                    return true;
+                }
+
+                Debug.LogWarning("TeleportZone: RandomFloorInProceduralDungeon — не удалось, используем фиксированную точку.");
+                if (returnSpawnPoint == null)
+                    return false;
+                position = returnSpawnPoint.position;
+                rotation = returnSpawnPoint.rotation;
+                return true;
+            }
+
+            default:
+                if (returnSpawnPoint == null)
+                    return false;
+                position = returnSpawnPoint.position;
+                rotation = returnSpawnPoint.rotation;
+                return true;
+        }
+    }
+
+    private static bool TryRandomPointOnGroundAround(
+        Vector3 center,
+        float horizontalRadius,
+        float raycastStartHeight,
+        LayerMask groundMask,
+        out Vector3 hitPosition)
+    {
+        hitPosition = center;
+        Vector2 disk = Random.insideUnitCircle * Mathf.Max(0.1f, horizontalRadius);
+        Vector3 origin = center + new Vector3(disk.x, raycastStartHeight, disk.y);
+        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, raycastStartHeight + 200f, groundMask, QueryTriggerInteraction.Ignore))
+        {
+            hitPosition = hit.point + Vector3.up * 0.06f;
+            return true;
+        }
+
+        return false;
     }
 
     private void UpdateVisualFeedback()
@@ -310,15 +448,20 @@ public class TeleportZone : MonoBehaviour
             Vector3 currentPos = playerController.transform.position;
             Debug.Log($"🔍 Проверка возврата через {delay}с: {currentPos}");
 
-            // Если игрок не на поверхности, принудительно перемещаем
-            if (currentPos.y < 0)
+            if (_lastTeleportKeptPlayerUnderground)
             {
-                Debug.LogWarning("⚠ Игрок остался под землей! Принудительно перемещаем на поверхность...");
+                Debug.Log("✅ Выход внутри данжа — проверку «поверхности» не делаем");
+                yield break;
+            }
 
-                Vector3 surfacePos = new Vector3(currentPos.x, 0f, currentPos.z);
-                playerController.transform.position = surfacePos;
+            if (returnSpawnPoint != null && currentPos.y < returnSpawnPoint.position.y - 0.75f)
+            {
+                Debug.LogWarning("⚠ Игрок остался заметно ниже точки выхода. Принудительно ставим в returnSpawnPoint.");
 
-                Debug.Log($"🔧 Принудительно перемещен на поверхность: {playerController.transform.position}");
+                playerController.transform.position = returnSpawnPoint.position;
+                playerController.transform.rotation = returnSpawnPoint.rotation;
+
+                Debug.Log($"🔧 Принудительно перемещен к точке выхода: {playerController.transform.position}");
             }
             else
             {

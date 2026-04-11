@@ -3170,6 +3170,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TeleportZone
   returnSpawnPoint: {fileID: 1315365795}
+  exitDestination: 0
+  proceduralDungeon: {fileID: 0}
+  randomSurfaceHorizontalRadius: 8
+  randomSurfaceRaycastStartHeight: 40
+  randomSurfaceGroundMask:
+    serializedVersion: 2
+    m_Bits: 1
   holdTime: 3
   teleportDelay: 0.5
   teleportCooldown: 10
@@ -3179,6 +3186,14 @@ MonoBehaviour:
   progressIndicator: {fileID: 0}
   progressMaterial: {fileID: 0}
   progressUI: {fileID: 0}
+  showGroundMarker: 1
+  groundMarkerRadius: 1.75
+  groundMarkerRaycastUp: 4
+  groundMarkerRaycastDown: 25
+  groundMarkerRaycastMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  groundMarkerColor: {r: 0.2, g: 0.85, b: 1, a: 0.9}
   showSign: 1
   signText: "\u0412\u044B\u0445\u043E\u0434 \u0438\u0437 \u0434\u0430\u043D\u0436\u0430"
   signHeight: 1
@@ -16011,10 +16026,33 @@ MonoBehaviour:
   flipPrefabLeftRight: 0
   playerSpawnChildName: DungeonPlayerSpawn
   playerSpawnLocalInRoom: {x: 3, y: 0, z: -8.5}
+  spawnDungeonExitPrefabAfterGenerate: 1
+  useSimpleProceduralDungeonExit: 1
+  dungeonExitZonePrefab: {fileID: 0}
+  simpleExitTriggerSize: {x: 1.5, y: 2.2, z: 1.2}
+  simpleExitTriggerCenter: {x: 0, y: 1.1, z: 0}
+  simpleExitMarkerRadius: 0.75
+  simpleExitMarkerColor: {r: 0.15, g: 0.55, b: 1, a: 0.92}
+  simpleExitSignText: "\u0412\u044B\u0445\u043E\u0434"
+  simpleExitSignHeight: 1.85
+  placeDungeonExitAtRandomFloor: 1
+  exitZoneOffsetLocalFromEnterSpawn: {x: 4, y: 0, z: -5}
+  dungeonSurfaceReturnPoint: {fileID: 0}
+  runtimeExitTriggerSize: {x: 2.6, y: 3.2, z: 1.8}
+  runtimeExitTriggerCenter: {x: 0, y: 1.55, z: 0}
   addMeshCollidersToRooms: 1
+  skipMeshCollidersUnderNamedAncestors: 1
+  skipMeshColliderAncestorNames:
+  - Cellar
+  - Ceiling
   assignDungeonCollisionLayer: 1
   dungeonCollisionLayerName: Dungeon
   generateOnAwake: 1
+  randomFloorRaycastMask:
+    serializedVersion: 2
+    m_Bits: 256
+  randomFloorRaycastStartAboveBounds: 2
+  randomFloorMinUpNormalDot: 0.45
 --- !u!1 &1012672669
 GameObject:
   m_ObjectHideFlags: 0
@@ -36429,7 +36467,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6055238445545915388, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6077938437133735056, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
       propertyPath: m_LocalRotation.w
@@ -36544,7 +36582,8 @@ PrefabInstance:
       value: 180
       objectReference: {fileID: 0}
     m_RemovedComponents: []
-    m_RemovedGameObjects: []
+    m_RemovedGameObjects:
+    - {fileID: 6706713412469528555, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
     m_AddedGameObjects:
     - targetCorrespondingSourceObject: {fileID: 7688081225950845920, guid: 0c7693f5b9e0fac49a83cde4e3b737bb, type: 3}
       insertIndex: 0
