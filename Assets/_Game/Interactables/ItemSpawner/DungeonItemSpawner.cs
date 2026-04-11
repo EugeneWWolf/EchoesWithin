@@ -39,6 +39,12 @@ public class DungeonItemSpawner : MonoBehaviour
     [SerializeField] private bool showDebugGizmos = false;
     [SerializeField] private Color gizmoColor = Color.green;
 
+    [Header("Производительность")]
+    [Tooltip("Логи на каждый предмет / итерацию сильно тормозят редактор.")]
+    [SerializeField] private bool verboseSpawnLogs;
+    [Tooltip("После N успешных спавнов в FillDungeonToTarget — отдать кадр (0 = не дробить).")]
+    [SerializeField] [Min(0)] private int yieldEveryNItemsDuringFill = 4;
+
     private ItemFactory itemFactory;
     private DungeonItemManager itemManager;
     private List<GameObject> spawnedItems = new List<GameObject>();
@@ -202,12 +208,14 @@ public class DungeonItemSpawner : MonoBehaviour
     /// </summary>
     private IEnumerator FillDungeonToTarget(int targetCount)
     {
-        Debug.Log($"🏰 DungeonItemSpawner: Начинаем заполнение данжа до {targetCount} предметов");
+        if (verboseSpawnLogs)
+            Debug.Log($"🏰 DungeonItemSpawner: Начинаем заполнение данжа до {targetCount} предметов");
 
         // Даем время на инициализацию нодов (если они еще не были найдены)
         if (availableNodes.Count == 0 && (spawnMode == SpawnMode.UseNodes || spawnMode == SpawnMode.Hybrid))
         {
-            Debug.Log("🏰 DungeonItemSpawner: Ноды не найдены, пытаемся найти их снова...");
+            if (verboseSpawnLogs)
+                Debug.Log("🏰 DungeonItemSpawner: Ноды не найдены, пытаемся найти их снова...");
             InitializeNodes();
             yield return null; // Даем один кадр на обработку
         }
@@ -219,6 +227,8 @@ public class DungeonItemSpawner : MonoBehaviour
 
         // Очищаем список использованных нодов для начального заполнения
         usedNodes.Clear();
+
+        int fillBurstSinceYield = 0;
 
         while (spawnedItems.Count < targetCount && attempts < maxAttempts)
         {
@@ -259,6 +269,15 @@ public class DungeonItemSpawner : MonoBehaviour
                         SpawnItem(config, spawnPosition);
                         itemsSpawnedThisIteration++;
                         consecutiveFailures = 0; // Сбрасываем счетчик неудач при успешном спавне
+                        if (yieldEveryNItemsDuringFill > 0)
+                        {
+                            fillBurstSinceYield++;
+                            if (fillBurstSinceYield >= yieldEveryNItemsDuringFill)
+                            {
+                                fillBurstSinceYield = 0;
+                                yield return null;
+                            }
+                        }
                     }
                     else
                     {
@@ -278,8 +297,7 @@ public class DungeonItemSpawner : MonoBehaviour
                 consecutiveFailures = 0;
             }
 
-            // Логируем прогресс периодически
-            if (attempts % 5 == 0 || spawnedItems.Count >= targetCount)
+            if (verboseSpawnLogs && (attempts % 5 == 0 || spawnedItems.Count >= targetCount))
             {
                 Debug.Log($"🏰 DungeonItemSpawner: Прогресс заполнения: {spawnedItems.Count}/{targetCount} ({itemsSpawnedThisIteration} спавнено в этой итерации, попытка {attempts})");
             }
@@ -342,7 +360,8 @@ public class DungeonItemSpawner : MonoBehaviour
             }
         }
 
-        Debug.Log($"🏰 DungeonItemSpawner: Заполнение завершено. Создано {spawnedItems.Count}/{targetCount} предметов за {attempts} попыток");
+        if (verboseSpawnLogs)
+            Debug.Log($"🏰 DungeonItemSpawner: Заполнение завершено. Создано {spawnedItems.Count}/{targetCount} предметов за {attempts} попыток");
 
         if (attempts >= maxAttempts)
         {
@@ -366,7 +385,8 @@ public class DungeonItemSpawner : MonoBehaviour
     /// </summary>
     public void SpawnRandomItems()
     {
-        Debug.Log($"🏰 DungeonItemSpawner: Начинаем спавн предметов. Текущее количество: {spawnedItems.Count}/{maxItemsInDungeon}, Доступных нодов: {availableNodes.Count}, Использовано: {usedNodes.Count}");
+        if (verboseSpawnLogs)
+            Debug.Log($"🏰 DungeonItemSpawner: Начинаем спавн предметов. Текущее количество: {spawnedItems.Count}/{maxItemsInDungeon}, Доступных нодов: {availableNodes.Count}, Использовано: {usedNodes.Count}");
 
         if (spawnConfigs == null || spawnConfigs.Length == 0)
         {
@@ -381,24 +401,28 @@ public class DungeonItemSpawner : MonoBehaviour
             // Проверяем лимит перед каждым типом предметов
             if (spawnedItems.Count >= maxItemsInDungeon)
             {
-                Debug.Log($"🏰 DungeonItemSpawner: Достигнут лимит предметов ({maxItemsInDungeon}), пропускаем {config.itemType}");
+                if (verboseSpawnLogs)
+                    Debug.Log($"🏰 DungeonItemSpawner: Достигнут лимит предметов ({maxItemsInDungeon}), пропускаем {config.itemType}");
                 break;
             }
 
             float roll = Random.value;
-            Debug.Log($"🏰 DungeonItemSpawner: Проверка спавна {config.itemType}: roll={roll:F2}, chance={config.spawnChance:F2}");
+            if (verboseSpawnLogs)
+                Debug.Log($"🏰 DungeonItemSpawner: Проверка спавна {config.itemType}: roll={roll:F2}, chance={config.spawnChance:F2}");
 
             if (roll <= config.spawnChance)
             {
                 int count = Random.Range(config.minCount, config.maxCount + 1);
-                Debug.Log($"🏰 DungeonItemSpawner: Спавним {count} предметов типа {config.itemType}");
+                if (verboseSpawnLogs)
+                    Debug.Log($"🏰 DungeonItemSpawner: Спавним {count} предметов типа {config.itemType}");
 
                 for (int i = 0; i < count; i++)
                 {
                     // Проверяем лимит перед каждым предметом
                     if (spawnedItems.Count >= maxItemsInDungeon)
                     {
-                        Debug.Log($"🏰 DungeonItemSpawner: Достигнут лимит предметов ({maxItemsInDungeon}) во время спавна {config.itemType}");
+                        if (verboseSpawnLogs)
+                            Debug.Log($"🏰 DungeonItemSpawner: Достигнут лимит предметов ({maxItemsInDungeon}) во время спавна {config.itemType}");
                         break;
                     }
 
@@ -416,11 +440,13 @@ public class DungeonItemSpawner : MonoBehaviour
             }
             else
             {
-                Debug.Log($"🏰 DungeonItemSpawner: {config.itemType} не спавнится (roll {roll:F2} > chance {config.spawnChance:F2})");
+                if (verboseSpawnLogs)
+                    Debug.Log($"🏰 DungeonItemSpawner: {config.itemType} не спавнится (roll {roll:F2} > chance {config.spawnChance:F2})");
             }
         }
 
-        Debug.Log($"🏰 DungeonItemSpawner: Спавн завершен. Создано предметов в этом цикле: {itemsSpawnedThisCycle}, Общее количество: {spawnedItems.Count}/{maxItemsInDungeon}");
+        if (verboseSpawnLogs)
+            Debug.Log($"🏰 DungeonItemSpawner: Спавн завершен. Создано предметов в этом цикле: {itemsSpawnedThisCycle}, Общее количество: {spawnedItems.Count}/{maxItemsInDungeon}");
     }
 
     /// <summary>
@@ -466,6 +492,9 @@ public class DungeonItemSpawner : MonoBehaviour
                 return;
             }
         }
+
+        if (proceduralDungeon != null)
+            return;
 
         // Пытаемся найти ноды через генератор
         if (nodeGenerator != null)
@@ -601,19 +630,22 @@ public class DungeonItemSpawner : MonoBehaviour
     {
         Vector3 center = dungeonCenter.position;
 
-        // Генерируем случайную позицию в радиусе
-        Vector2 randomCircle = Random.insideUnitCircle * spawnRadius;
-        Vector3 randomPosition = center + new Vector3(randomCircle.x, 0, randomCircle.y);
-
-        // Ищем землю под позицией
-        RaycastHit hit;
-        if (Physics.Raycast(randomPosition + Vector3.up * 5f, Vector3.down, out hit, groundCheckDistance, groundLayer))
+        for (int attempt = 0; attempt < 28; attempt++)
         {
-            return hit.point + Vector3.up * 0.5f; // Немного поднимаем над землей
+            Vector2 randomCircle = Random.insideUnitCircle * spawnRadius;
+            Vector3 randomPosition = center + new Vector3(randomCircle.x, 0, randomCircle.y);
+
+            if (!Physics.Raycast(randomPosition + Vector3.up * 5f, Vector3.down, out RaycastHit hit, groundCheckDistance,
+                    groundLayer, QueryTriggerInteraction.Ignore))
+                continue;
+
+            if (proceduralDungeon != null && !proceduralDungeon.IsLootStandPointClearOfNearbyWalls(hit.point))
+                continue;
+
+            return hit.point;
         }
 
-        // Если земля не найдена, размещаем на уровне центра данжа
-        return new Vector3(randomPosition.x, center.y, randomPosition.z);
+        return new Vector3(center.x, center.y, center.z);
     }
 
     /// <summary>
@@ -660,7 +692,8 @@ public class DungeonItemSpawner : MonoBehaviour
                 itemManager.RegisterDungeonItem(item);
             }
 
-            Debug.Log($"🏰 DungeonItemSpawner: Создан предмет {item.name} в позиции {position} (цена: {spawnData.price}, стат: {spawnData.statValue:F1}) (всего: {spawnedItems.Count}/{maxItemsInDungeon})");
+            if (verboseSpawnLogs)
+                Debug.Log($"🏰 DungeonItemSpawner: Создан предмет {item.name} в позиции {position} (цена: {spawnData.price}, стат: {spawnData.statValue:F1}) (всего: {spawnedItems.Count}/{maxItemsInDungeon})");
         }
     }
 

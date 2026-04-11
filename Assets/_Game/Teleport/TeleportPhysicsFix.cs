@@ -10,8 +10,8 @@ public class TeleportPhysicsFix : MonoBehaviour
 
     [Header("Телепорт в данж")]
     [SerializeField] private float teleportCcDisabledSeconds = 0.1f;
-    [Tooltip("После включения CharacterController столько секунд игнорируем коллизию со слоем данжа (проход сквозь крышу/оболочку)")]
-    [SerializeField] private float ignoreDungeonLayerAfterCcReenabledSeconds = 0.45f;
+    [Tooltip("Опциональная пауза после восстановления коллизии со слоем данжа. Не используйте для «ноуклипа» — при включённом CC и исключённом слое пола игрок падает сквозь пол.")]
+    [SerializeField] private float ignoreDungeonLayerAfterCcReenabledSeconds = 0f;
 
     private CharacterController characterController;
     private Rigidbody rigidbody;

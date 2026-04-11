@@ -16,7 +16,18 @@ public class ItemFactory : MonoBehaviour
     [SerializeField] private bool useObjectPooling = true;
     [SerializeField] private int poolSize = 50;
 
+    [Header("Данж: позиция на полу")]
+    [Tooltip("Пивот префаба часто в центре меша; нода даёт точку на полу. Без физики предмет не «оседает» — сдвигаем по нижней границе рендера к полу (луч по слою данжа).")]
+    [SerializeField] private bool snapLootBottomToDungeonFloor = true;
+
+    [Header("Производительность")]
+    [Tooltip("Логи при каждом спавне/взятии из пула сильно грузят редактор. Выкл. по умолчанию.")]
+    [SerializeField] private bool verboseItemFactoryLogs;
+
     private Dictionary<ItemType, Queue<GameObject>> objectPools;
+
+    private static readonly List<Renderer> RendererScratch = new List<Renderer>(24);
+    private static readonly List<Collider> ColliderScratch = new List<Collider>(12);
 
     private void Awake()
     {
@@ -34,7 +45,8 @@ public class ItemFactory : MonoBehaviour
         CreatePool(ItemType.BuffItem, buffItemPrefabs);
         CreatePool(ItemType.Weapon, weaponPrefabs);
 
-        Debug.Log($"🏭 ItemFactory: Инициализированы пулы объектов. Размер пула: {poolSize}");
+        if (verboseItemFactoryLogs)
+            Debug.Log($"🏭 ItemFactory: Инициализированы пулы объектов. Размер пула: {poolSize}");
     }
 
     private void CreatePool(ItemType itemType, GameObject[] prefabs)
@@ -53,7 +65,8 @@ public class ItemFactory : MonoBehaviour
         }
 
         objectPools[itemType] = pool;
-        Debug.Log($"🏭 ItemFactory: Создан пул для {itemType} с {pool.Count} объектами");
+        if (verboseItemFactoryLogs)
+            Debug.Log($"🏭 ItemFactory: Создан пул для {itemType} с {pool.Count} объектами");
     }
 
     /// <summary>
@@ -68,13 +81,15 @@ public class ItemFactory : MonoBehaviour
             // Используем объект из пула
             item = objectPools[itemType].Dequeue();
             item.SetActive(true);
-            Debug.Log($"🏭 ItemFactory: Взят объект из пула для {itemType}");
+            if (verboseItemFactoryLogs)
+                Debug.Log($"🏭 ItemFactory: Взят объект из пула для {itemType}");
         }
         else
         {
             // Создаем новый объект
             item = CreateNewItem(itemType, spawnData);
-            Debug.Log($"🏭 ItemFactory: Создан новый объект для {itemType}");
+            if (verboseItemFactoryLogs)
+                Debug.Log($"🏭 ItemFactory: Создан новый объект для {itemType}");
         }
 
         if (item != null)
@@ -140,10 +155,14 @@ public class ItemFactory : MonoBehaviour
         // Устанавливаем слой
         SetupLayer(item);
 
-        // Добавляем физику для BuffItem и Weapon
-        SetupPhysics(item);
+        // Коллизия лута с NavMeshAgent монстра ломает путь; динамический RB + не-триггер здесь не нужны — позицию задаёт спавнер.
+        SetupPhysics(item, spawnData.itemType);
 
-        Debug.Log($"🏭 ItemFactory: Настроен предмет {spawnData.itemName} в позиции {spawnData.position}");
+        if (snapLootBottomToDungeonFloor)
+            SnapLootBottomToDungeonFloor(item);
+
+        if (verboseItemFactoryLogs)
+            Debug.Log($"🏭 ItemFactory: Настроен предмет {spawnData.itemName} в позиции {spawnData.position}");
     }
 
     private void AddSpecificComponents(GameObject item, ItemSpawnData spawnData)
@@ -178,7 +197,8 @@ public class ItemFactory : MonoBehaviour
                 // Устанавливаем цвет зелья в зависимости от типа стата
                 SetPotionColor(item, buffItem.statType);
 
-                Debug.Log($"🏭 ItemFactory: Создан {buffItem.statType} зелье со значением {buffItem.statValue:F1} (фабрика создает только Speed/Jump зелья)");
+                if (verboseItemFactoryLogs)
+                    Debug.Log($"🏭 ItemFactory: Создан {buffItem.statType} зелье со значением {buffItem.statValue:F1} (фабрика создает только Speed/Jump зелья)");
                 break;
 
             case ItemType.Weapon:
@@ -210,44 +230,142 @@ public class ItemFactory : MonoBehaviour
         }
     }
 
-    private void SetupPhysics(GameObject item)
+    /// <summary>
+    /// Лут в данже ставится спавнером на пол. Твёрдый коллайдер + dynamic Rigidbody мешают NavMeshAgent (застревания, ломаная траектория).
+    /// </summary>
+    private void SetupPhysics(GameObject item, ItemType itemType)
     {
-        // Добавляем Rigidbody для физики
-        Rigidbody rb = item.GetComponent<Rigidbody>();
-        if (rb == null)
+        Collider rootCollider = item.GetComponent<Collider>();
+
+        switch (itemType)
         {
-            rb = item.AddComponent<Rigidbody>();
+            case ItemType.SellableItem:
+                if (item.TryGetComponent(out Rigidbody sellRb))
+                    Destroy(sellRb);
+                if (rootCollider != null)
+                    rootCollider.isTrigger = true;
+                break;
+
+            case ItemType.BuffItem:
+            case ItemType.Weapon:
+            {
+                Rigidbody rb = item.GetComponent<Rigidbody>();
+                if (rb == null)
+                    rb = item.AddComponent<Rigidbody>();
+                rb.isKinematic = true;
+                rb.useGravity = false;
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                if (rootCollider != null)
+                    rootCollider.isTrigger = true;
+                break;
+            }
         }
 
-        // Настраиваем физику
-        rb.useGravity = true;
-        rb.linearDamping = 1f; // Сопротивление воздуха
-        rb.angularDamping = 2f; // Сопротивление вращению
+        EnsureInteractionTrigger(item, rootCollider);
+    }
 
-        // Делаем основной коллайдер не триггером для физики
-        Collider collider = item.GetComponent<Collider>();
-        if (collider != null)
+    private static void EnsureInteractionTrigger(GameObject item, Collider rootCollider)
+    {
+        const string triggerName = "InteractionTrigger";
+        Transform existing = item.transform.Find(triggerName);
+        if (existing != null)
         {
-            collider.isTrigger = false;
+            if (existing.TryGetComponent(out ItemInteractionTrigger link))
+                link.item = item;
+            if (existing.TryGetComponent(out BoxCollider box))
+            {
+                box.isTrigger = true;
+                if (rootCollider != null)
+                    box.size = rootCollider.bounds.size * 1.2f;
+            }
+
+            return;
         }
 
-        // Добавляем триггер для взаимодействия
-        GameObject interactionTrigger = new GameObject("InteractionTrigger");
-        interactionTrigger.transform.SetParent(item.transform);
+        GameObject interactionTrigger = new GameObject(triggerName);
+        interactionTrigger.transform.SetParent(item.transform, false);
         interactionTrigger.transform.localPosition = Vector3.zero;
-        interactionTrigger.layer = LayerMask.NameToLayer("Interactable");
+        int interactable = LayerMask.NameToLayer("Interactable");
+        if (interactable >= 0)
+            interactionTrigger.layer = interactable;
 
         BoxCollider triggerCollider = interactionTrigger.AddComponent<BoxCollider>();
         triggerCollider.isTrigger = true;
-        if (collider != null)
+        if (rootCollider != null)
+            triggerCollider.size = rootCollider.bounds.size * 1.2f;
+        else
+            triggerCollider.size = Vector3.one * 0.5f;
+
+        interactionTrigger.AddComponent<ItemInteractionTrigger>().item = item;
+    }
+
+    /// <summary>
+    /// Выравнивает предмет по вертикали: нижняя точка меша/коллайдеров к ближайшему полу данжа под объектом.
+    /// </summary>
+    private static void SnapLootBottomToDungeonFloor(GameObject item)
+    {
+        if (!TryGetWorldVisualBounds(item, out Bounds wb))
+            return;
+
+        int mask = DungeonFloorMaskForRay();
+        float castHeight = Mathf.Clamp(wb.size.y + 3f, 5f, 40f);
+        Vector3 origin = new Vector3(item.transform.position.x, wb.max.y + 0.35f, item.transform.position.z);
+        if (!Physics.Raycast(origin, Vector3.down, out RaycastHit hit, castHeight, mask, QueryTriggerInteraction.Ignore))
+            return;
+
+        const float skin = 0.02f;
+        float dy = hit.point.y + skin - wb.min.y;
+        if (Mathf.Abs(dy) <= 0.0005f)
+            return;
+
+        item.transform.position += new Vector3(0f, dy, 0f);
+    }
+
+    private static int DungeonFloorMaskForRay()
+    {
+        int d = ProceduralDungeonGenerator.DungeonCollisionLayerIndex;
+        return (d >= 0 && d <= 31) ? (1 << d) : Physics.DefaultRaycastLayers;
+    }
+
+    private static bool TryGetWorldVisualBounds(GameObject item, out Bounds worldBounds)
+    {
+        RendererScratch.Clear();
+        item.GetComponentsInChildren(true, RendererScratch);
+        if (RendererScratch.Count > 0)
         {
-            triggerCollider.size = collider.bounds.size * 1.2f;
+            worldBounds = RendererScratch[0].bounds;
+            for (int i = 1; i < RendererScratch.Count; i++)
+                worldBounds.Encapsulate(RendererScratch[i].bounds);
+            return true;
         }
 
-        // Добавляем компонент для идентификации
-        interactionTrigger.AddComponent<ItemInteractionTrigger>().item = item;
+        ColliderScratch.Clear();
+        item.GetComponentsInChildren(true, ColliderScratch);
+        if (ColliderScratch.Count > 0)
+        {
+            bool any = false;
+            worldBounds = default;
+            for (int i = 0; i < ColliderScratch.Count; i++)
+            {
+                Collider c = ColliderScratch[i];
+                if (c == null || c.gameObject.name == "InteractionTrigger")
+                    continue;
+                if (!any)
+                {
+                    worldBounds = c.bounds;
+                    any = true;
+                }
+                else
+                    worldBounds.Encapsulate(c.bounds);
+            }
 
-        Debug.Log($"🏭 ItemFactory: Добавлена физика для {item.name} (BuffItem/Weapon)");
+            if (any)
+                return true;
+        }
+
+        worldBounds = default;
+        return false;
     }
 
     /// <summary>
@@ -282,7 +400,8 @@ public class ItemFactory : MonoBehaviour
         {
             Color potionColor = GetPotionColor(statType);
             renderer.material.color = potionColor;
-            Debug.Log($"🎨 Установлен цвет зелья: {statType} = {potionColor}");
+            if (verboseItemFactoryLogs)
+                Debug.Log($"🎨 Установлен цвет зелья: {statType} = {potionColor}");
         }
     }
 
@@ -323,7 +442,8 @@ public class ItemFactory : MonoBehaviour
         item.transform.SetParent(transform);
         objectPools[itemType].Enqueue(item);
 
-        Debug.Log($"🏭 ItemFactory: Объект {item.name} возвращен в пул {itemType}");
+        if (verboseItemFactoryLogs)
+            Debug.Log($"🏭 ItemFactory: Объект {item.name} возвращен в пул {itemType}");
     }
 
     /// <summary>

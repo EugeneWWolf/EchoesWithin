@@ -3,11 +3,16 @@ using UnityEngine;
 
 /// <summary>
 /// При входе в данж CharacterController упирается в «оболочку»/крышу — временно исключаем слой данжа из коллизий CC.
+/// Важно: пока CC включён и слой данжа в excludeLayers, пол не даёт isGrounded — игрок падает сквозь меш; поэтому
+/// маска снимается сразу после включения CC, а не «ещё N секунд после».
 /// </summary>
 public static class DungeonTeleportCollisionBypass
 {
     /// <param name="secondsWithCcDisabled">Сколько секунд CC выключен после смены позиции (обычно один кадр или 0.05–0.1).</param>
-    /// <param name="secondsIgnoreDungeonAfterCcEnabled">После включения CC ещё столько секунд держим excludeLayers (проход сквозь геометрию данжа).</param>
+    /// <param name="optionalSettleDelayAfterCollisionsRestored">
+    /// Необязательная пауза после того как коллизия со слоем данжа снова включена (гравитация уже вкл.).
+    /// Раньше параметр означал «игнорировать данж при включённом CC» — это давало провалы сквозь пол; оставлено только как безопасная задержка.
+    /// </param>
     public static IEnumerator CoTeleport(
         Transform playerTransform,
         CharacterController characterController,
@@ -15,7 +20,7 @@ public static class DungeonTeleportCollisionBypass
         Vector3 worldPosition,
         Quaternion worldRotation,
         float secondsWithCcDisabled,
-        float secondsIgnoreDungeonAfterCcEnabled,
+        float optionalSettleDelayAfterCollisionsRestored,
         bool zeroRigidbodyVelocityAndGravityWhileDisabled)
     {
         if (playerTransform == null)
@@ -41,7 +46,8 @@ public static class DungeonTeleportCollisionBypass
             rigidbody.useGravity = false;
         }
 
-        playerTransform.position = worldPosition;
+        playerTransform.SetPositionAndRotation(worldPosition, worldRotation);
+        Physics.SyncTransforms();
 
         if (secondsWithCcDisabled > 0f)
             yield return new WaitForSeconds(secondsWithCcDisabled);
@@ -51,15 +57,13 @@ public static class DungeonTeleportCollisionBypass
         if (characterController != null)
             characterController.enabled = true;
 
-        if (rigidbody != null)
-            rigidbody.useGravity = true;
-
-        if (secondsIgnoreDungeonAfterCcEnabled > 0f)
-            yield return new WaitForSeconds(secondsIgnoreDungeonAfterCcEnabled);
-
         if (useLayerMask && characterController != null)
             characterController.excludeLayers = previousExclude;
 
-        playerTransform.rotation = worldRotation;
+        if (rigidbody != null)
+            rigidbody.useGravity = true;
+
+        if (optionalSettleDelayAfterCollisionsRestored > 0f)
+            yield return new WaitForSeconds(optionalSettleDelayAfterCollisionsRestored);
     }
 }

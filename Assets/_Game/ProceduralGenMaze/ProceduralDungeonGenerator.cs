@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Unity.AI.Navigation;
 using UnityEngine;
 using UnityEngine.AI;
+using Random = UnityEngine.Random;
 
 /// <summary>
 /// Процедурная сетка комнат из одного префаба.
@@ -11,6 +12,15 @@ using UnityEngine.AI;
 public class ProceduralDungeonGenerator : MonoBehaviour
 {
     private const string GeneratedRootName = "GeneratedDungeonRooms";
+
+    // Только оси XZ — вдвое меньше Raycast'ов при генерации нод, чем 8 направлений.
+    private static readonly Vector3[] HorizontalWallProbeDirections =
+    {
+        Vector3.forward,
+        Vector3.back,
+        Vector3.right,
+        Vector3.left
+    };
 
     [Header("Prefab")]
     [Tooltip("Корень комнаты: дочерний объект Entrances с парами «Up/Down/Left/Right» + « Wall» / « Door»")]
@@ -78,12 +88,18 @@ public class ProceduralDungeonGenerator : MonoBehaviour
     [SerializeField] private string dungeonCollisionLayerName = "Dungeon";
 
     [Header("Ноды спавна предметов (DungeonSpawnNode)")]
-    [Tooltip("После генерации комнат создаётся родитель DungeonSpawnNodes с нодами на полу — для DungeonItemSpawner и патруля.")]
+    [Tooltip("После генерации комнат создаётся родитель с DungeonSpawnNode на полу (имя по умолчанию ProceduralDungeonSpawnNodes) — для DungeonItemSpawner и патруля.")]
     [SerializeField] private bool createItemSpawnNodesAfterGenerate = true;
     [SerializeField] [Min(0)] private int itemSpawnNodeCount = 48;
     [Tooltip("Минимальное расстояние между нодами по XZ, чтобы не кучковались.")]
     [SerializeField] [Min(0.1f)] private float itemSpawnNodeMinSeparation = 2f;
-    [SerializeField] private string itemSpawnNodesRootName = "DungeonSpawnNodes";
+    [SerializeField] private string itemSpawnNodesRootName = "ProceduralDungeonSpawnNodes";
+    [Tooltip("Случайная точка на полу может быть у стены; лут с шириной торчит в меш. Лучи по горизонтали отбраковывают такие ноды.")]
+    [SerializeField] private bool validateItemSpawnNodeWallClearance = true;
+    [SerializeField] [Min(0.05f)] private float itemSpawnWallHorizontalProbeDistance = 0.42f;
+    [SerializeField] [Min(0.02f)] private float itemSpawnWallProbeOriginYOffset = 0.22f;
+    [Tooltip("Попадание в геометрию: если |dot(нормаль, вверх)| ниже — это боковая стена слишком близко (нода отклоняется).")]
+    [SerializeField] [Range(0.15f, 0.95f)] private float itemSpawnWallRejectMaxAbsUpNormalDot = 0.5f;
 
     [Header("Lifecycle")]
     [SerializeField] private bool generateOnAwake = true;
@@ -108,6 +124,7 @@ public class ProceduralDungeonGenerator : MonoBehaviour
     private RaycastHit[] randomFloorRaycastHits;
     private Transform dungeonEnterSpawn;
     private readonly HashSet<Vector2Int> placedCells = new HashSet<Vector2Int>();
+    private readonly Dictionary<Vector2Int, Transform> roomRootByCell = new Dictionary<Vector2Int, Transform>();
 
     public IReadOnlyCollection<Vector2Int> PlacedCells => placedCells;
     public Transform GeneratedRoot => generatedRoot;
@@ -140,6 +157,7 @@ public class ProceduralDungeonGenerator : MonoBehaviour
 
         itemSpawnNodesRoot = null;
         placedCells.Clear();
+        roomRootByCell.Clear();
         DungeonCollisionLayerIndex = -1;
     }
 
@@ -206,6 +224,8 @@ public class ProceduralDungeonGenerator : MonoBehaviour
 
             if (assignDungeonCollisionLayer && DungeonCollisionLayerIndex >= 0)
                 SetLayerRecursively(instance.transform, DungeonCollisionLayerIndex);
+
+            roomRootByCell[cell] = instance.transform;
         }
 
         UpdateDungeonEnterSpawn(startRoomInstance);
@@ -236,7 +256,7 @@ public class ProceduralDungeonGenerator : MonoBehaviour
         Physics.SyncTransforms();
 
         var rootGo = new GameObject(string.IsNullOrWhiteSpace(itemSpawnNodesRootName)
-            ? "DungeonSpawnNodes"
+            ? "ProceduralDungeonSpawnNodes"
             : itemSpawnNodesRootName.Trim());
         rootGo.transform.SetParent(generatedRoot, false);
         itemSpawnNodesRoot = rootGo.transform;
@@ -250,7 +270,10 @@ public class ProceduralDungeonGenerator : MonoBehaviour
         while (placed.Count < itemSpawnNodeCount && tries < maxTries)
         {
             tries++;
-            if (!TryGetRandomFloorPosition(out Vector3 pos, out _, 32))
+            if (!TryGetRandomFloorPosition(out Vector3 pos, out _, 18))
+                continue;
+
+            if (validateItemSpawnNodeWallClearance && !IsFloorPointClearOfNearbyVerticalWalls(pos))
                 continue;
 
             bool tooClose = false;
@@ -285,6 +308,38 @@ public class ProceduralDungeonGenerator : MonoBehaviour
         {
             Debug.Log($"ProceduralDungeonGenerator: создано {placed.Count} нодов спавна предметов.");
         }
+    }
+
+    /// <summary>
+    /// Та же проверка, что для нод спавна лута: можно вызывать из спавнера для fallback-позиций.
+    /// </summary>
+    public bool IsLootStandPointClearOfNearbyWalls(Vector3 floorPoint)
+    {
+        if (!validateItemSpawnNodeWallClearance)
+            return true;
+        return IsFloorPointClearOfNearbyVerticalWalls(floorPoint);
+    }
+
+    /// <summary>
+    /// Отсекает точки у вертикальной геометрии данжа: горизонтальные лучи не должны быстро встречать «боковые» нормали.
+    /// </summary>
+    private bool IsFloorPointClearOfNearbyVerticalWalls(Vector3 floorPoint)
+    {
+        int mask = randomFloorRaycastMask.value == 0 ? Physics.DefaultRaycastLayers : randomFloorRaycastMask.value;
+        Vector3 origin = floorPoint + Vector3.up * itemSpawnWallProbeOriginYOffset;
+        float maxDist = itemSpawnWallHorizontalProbeDistance;
+
+        foreach (Vector3 dir in HorizontalWallProbeDirections)
+        {
+            if (!Physics.Raycast(origin, dir, out RaycastHit hit, maxDist, mask, QueryTriggerInteraction.Ignore))
+                continue;
+
+            float upDot = Mathf.Abs(Vector3.Dot(hit.normal, Vector3.up));
+            if (upDot < itemSpawnWallRejectMaxAbsUpNormalDot)
+                return false;
+        }
+
+        return true;
     }
 
     private void ClearRuntimeNavMeshSurfaceData()
@@ -563,6 +618,209 @@ public class ProceduralDungeonGenerator : MonoBehaviour
 
         worldPosition = new Vector3(bounds.center.x, bounds.min.y + 0.5f, bounds.center.z);
         return true;
+    }
+
+    /// <summary>
+    /// Точка на полу в комнате, максимально удалённой от стартовой клетки (0,0) по числу шагов по сетке соседей;
+    /// затем случайная точка на полу внутри bounds этой комнаты. При неудаче — случайная точка по всему данжу с отступом от входа.
+    /// </summary>
+    public bool TryGetRandomFloorPositionFarthestFromEntrance(
+        Vector3 entranceWorldPosition,
+        float minHorizontalDistanceFromEntrance,
+        out Vector3 worldPosition,
+        out Quaternion worldRotation)
+    {
+        worldPosition = default;
+        worldRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+
+        if (TryGetFarthestCellsByGraphDistanceFromStart(out List<Vector2Int> farCells) && farCells.Count > 0)
+        {
+            ShuffleCellList(farCells);
+            foreach (Vector2Int cell in farCells)
+            {
+                if (!roomRootByCell.TryGetValue(cell, out Transform roomRoot) || roomRoot == null)
+                    continue;
+
+                if (TrySampleFloorInRoomAvoiding(
+                        roomRoot,
+                        entranceWorldPosition,
+                        minHorizontalDistanceFromEntrance,
+                        out worldPosition,
+                        out worldRotation,
+                        72))
+                    return true;
+
+                if (minHorizontalDistanceFromEntrance > 0.01f &&
+                    TrySampleFloorInRoomAvoiding(roomRoot, entranceWorldPosition, 0f, out worldPosition, out worldRotation, 48))
+                    return true;
+            }
+        }
+
+        if (TryGetRandomFloorPositionAvoidingHorizontal(entranceWorldPosition, minHorizontalDistanceFromEntrance, out worldPosition, out worldRotation, 96))
+            return true;
+
+        return TryGetRandomFloorPosition(out worldPosition, out worldRotation, 40);
+    }
+
+    private bool TryGetFarthestCellsByGraphDistanceFromStart(out List<Vector2Int> tiedFarthest)
+    {
+        tiedFarthest = new List<Vector2Int>();
+        if (placedCells == null || placedCells.Count == 0)
+            return false;
+
+        Vector2Int origin = Vector2Int.zero;
+        if (!placedCells.Contains(origin))
+        {
+            foreach (Vector2Int c in placedCells)
+            {
+                origin = c;
+                break;
+            }
+        }
+
+        var dist = new Dictionary<Vector2Int, int>();
+        var q = new Queue<Vector2Int>();
+        dist[origin] = 0;
+        q.Enqueue(origin);
+
+        Vector2Int[] dirs =
+        {
+            new Vector2Int(0, 1),
+            new Vector2Int(0, -1),
+            new Vector2Int(1, 0),
+            new Vector2Int(-1, 0)
+        };
+
+        while (q.Count > 0)
+        {
+            Vector2Int c = q.Dequeue();
+            int d = dist[c];
+            foreach (Vector2Int o in dirs)
+            {
+                Vector2Int n = c + o;
+                if (!placedCells.Contains(n) || dist.ContainsKey(n))
+                    continue;
+                dist[n] = d + 1;
+                q.Enqueue(n);
+            }
+        }
+
+        int best = -1;
+        foreach (KeyValuePair<Vector2Int, int> kv in dist)
+        {
+            if (kv.Value > best)
+                best = kv.Value;
+        }
+
+        if (best < 0)
+            return false;
+
+        foreach (KeyValuePair<Vector2Int, int> kv in dist)
+        {
+            if (kv.Value == best)
+                tiedFarthest.Add(kv.Key);
+        }
+
+        return tiedFarthest.Count > 0;
+    }
+
+    private static void ShuffleCellList(List<Vector2Int> list)
+    {
+        for (int i = list.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            (list[i], list[j]) = (list[j], list[i]);
+        }
+    }
+
+    private bool TrySampleFloorInRoomAvoiding(
+        Transform roomWorldRoot,
+        Vector3 avoidWorld,
+        float minHorizontalDistance,
+        out Vector3 worldPosition,
+        out Quaternion worldRotation,
+        int maxAttempts)
+    {
+        worldPosition = default;
+        worldRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+
+        if (!TryComputeRenderersWorldBounds(roomWorldRoot, out Bounds bounds))
+            return false;
+
+        float minSqr = minHorizontalDistance * minHorizontalDistance;
+        int mask = randomFloorRaycastMask.value == 0 ? Physics.DefaultRaycastLayers : randomFloorRaycastMask.value;
+        float rayLength = bounds.size.y + randomFloorRaycastStartAboveBounds + 8f;
+        EnsureRandomFloorHitBuffer();
+
+        for (int i = 0; i < maxAttempts; i++)
+        {
+            float x = Random.Range(bounds.min.x, bounds.max.x);
+            float z = Random.Range(bounds.min.z, bounds.max.z);
+            if (minHorizontalDistance > 0.01f)
+            {
+                float dx = x - avoidWorld.x;
+                float dz = z - avoidWorld.z;
+                if (dx * dx + dz * dz < minSqr)
+                    continue;
+            }
+
+            Vector3 origin = new Vector3(x, bounds.max.y + randomFloorRaycastStartAboveBounds, z);
+            int count = Physics.RaycastNonAlloc(
+                origin, Vector3.down, randomFloorRaycastHits, rayLength, mask, QueryTriggerInteraction.Ignore);
+            if (TryPickFloorHit(randomFloorRaycastHits, count, randomFloorMinUpNormalDot, out RaycastHit floorHit))
+            {
+                worldPosition = floorHit.point + Vector3.up * 0.06f;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool TryGetRandomFloorPositionAvoidingHorizontal(
+        Vector3 avoidWorld,
+        float minHorizontalDistance,
+        out Vector3 worldPosition,
+        out Quaternion worldRotation,
+        int maxAttempts)
+    {
+        worldPosition = default;
+        worldRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+
+        if (generatedRoot == null || generatedRoot.childCount == 0)
+            return false;
+
+        if (!TryComputeRenderersWorldBounds(generatedRoot, out Bounds bounds))
+            return false;
+
+        float minSqr = minHorizontalDistance * minHorizontalDistance;
+        int mask = randomFloorRaycastMask.value == 0 ? Physics.DefaultRaycastLayers : randomFloorRaycastMask.value;
+        float rayLength = bounds.size.y + randomFloorRaycastStartAboveBounds + 8f;
+        EnsureRandomFloorHitBuffer();
+
+        for (int i = 0; i < maxAttempts; i++)
+        {
+            float x = Random.Range(bounds.min.x, bounds.max.x);
+            float z = Random.Range(bounds.min.z, bounds.max.z);
+            if (minHorizontalDistance > 0.01f)
+            {
+                float dx = x - avoidWorld.x;
+                float dz = z - avoidWorld.z;
+                if (dx * dx + dz * dz < minSqr)
+                    continue;
+            }
+
+            Vector3 origin = new Vector3(x, bounds.max.y + randomFloorRaycastStartAboveBounds, z);
+            int count = Physics.RaycastNonAlloc(
+                origin, Vector3.down, randomFloorRaycastHits, rayLength, mask, QueryTriggerInteraction.Ignore);
+            if (TryPickFloorHit(randomFloorRaycastHits, count, randomFloorMinUpNormalDot, out RaycastHit floorHit))
+            {
+                worldPosition = floorHit.point + Vector3.up * 0.06f;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void SpawnDungeonExitZone(GameObject startRoomInstance)

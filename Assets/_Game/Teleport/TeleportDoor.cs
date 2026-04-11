@@ -58,7 +58,7 @@ public class TeleportDoor : MonoBehaviour
 
     [Header("Телепорт в данж (без TeleportPhysicsFix на игроке)")]
     [SerializeField] private float fallbackCcDisabledSeconds = 0.1f;
-    [SerializeField] private float fallbackIgnoreDungeonAfterCcSeconds = 0.45f;
+    [SerializeField] private float fallbackIgnoreDungeonAfterCcSeconds = 0f;
 
     private bool isPlayerNearby = false;
     private WorldSign worldSign;

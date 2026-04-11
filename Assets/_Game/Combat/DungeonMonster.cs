@@ -34,8 +34,12 @@ public class DungeonMonster : Enemy
     [Tooltip("При старте и после Regenerate — телепорт на случайную точку пола в данже (не у входа).")]
     [SerializeField] private bool relocateIntoProceduralDungeonOnReady = true;
     [SerializeField] private float minDistanceFromDungeonEnterWhenRelocating = 7f;
+    [Tooltip("Сначала комната с максимальным расстоянием по сетке от старта (0,0), затем отступ от точки входа по XZ.")]
+    [SerializeField] private bool spawnMonsterInGraphFarthestRoomFromEntrance = true;
 
     [Header("Поведение в лабиринте")]
+    [Tooltip("Луч «пол под нодом» / привязка к земле: только эти слои (0 = авто: слой данжа из ProceduralDungeonGenerator, иначе все слои по умолчанию). Иначе луч цепляется за лут на Interactable и ломает NavMesh-цель.")]
+    [SerializeField] private LayerMask patrolGroundRaycastMask;
     [Tooltip("Обнаружение без обзора и луча — «звук» в коридоре. 0 = выключено.")]
     [SerializeField] private float hearingDetectionRange = 6.5f;
     [Tooltip("Если нет зрения и слуха, но недавно видел — идёт сюда, пока не истечёт таймер.")]
@@ -86,6 +90,13 @@ public class DungeonMonster : Enemy
         UseNodes,      // Патрулирование по нодам (если назначены)
         WanderArea     // Блуждание по случайным точкам в области
     }
+
+    private int PatrolGroundPhysicsMask =>
+        patrolGroundRaycastMask.value != 0
+            ? patrolGroundRaycastMask.value
+            : (ProceduralDungeonGenerator.DungeonCollisionLayerIndex is >= 0 and <= 31
+                ? 1 << ProceduralDungeonGenerator.DungeonCollisionLayerIndex
+                : Physics.DefaultRaycastLayers);
 
     private MonsterState currentState = MonsterState.Patrolling;
 
@@ -141,6 +152,14 @@ public class DungeonMonster : Enemy
         Vector3 enterPos = proceduralDungeon.DungeonEnterSpawn != null
             ? proceduralDungeon.DungeonEnterSpawn.position
             : transform.position;
+
+        if (spawnMonsterInGraphFarthestRoomFromEntrance &&
+            proceduralDungeon.TryGetRandomFloorPositionFarthestFromEntrance(
+                enterPos,
+                minDistanceFromDungeonEnterWhenRelocating,
+                out floorPos,
+                out _))
+            return true;
 
         float minSqr = minDistanceFromDungeonEnterWhenRelocating * minDistanceFromDungeonEnterWhenRelocating;
 
@@ -349,9 +368,10 @@ public class DungeonMonster : Enemy
             currentPos + Vector3.down * 5f,          // Ниже
         };
 
-        // Также проверяем через raycast
+        // Также проверяем через raycast (маска — пол данжа, не мелкий лут)
         RaycastHit groundHit;
-        if (Physics.Raycast(currentPos + Vector3.up * 10f, Vector3.down, out groundHit, 50f))
+        if (Physics.Raycast(currentPos + Vector3.up * 10f, Vector3.down, out groundHit, 50f, PatrolGroundPhysicsMask,
+                QueryTriggerInteraction.Ignore))
         {
             searchPositions = new Vector3[]
             {
@@ -415,6 +435,14 @@ public class DungeonMonster : Enemy
                     return;
                 }
             }
+
+            if (enableDebugLogs)
+            {
+                Debug.LogWarning(
+                    "⚠ DungeonMonster: Процедурный патруль включён, но активных нодов нет — " +
+                    "старые ноды из сцены не используются. Проверь itemSpawnNodeCount на ProceduralDungeonGenerator.");
+            }
+            return;
         }
 
         // Сначала пытаемся получить ноды через генератор
@@ -722,8 +750,9 @@ public class DungeonMonster : Enemy
             RaycastHit groundHit;
             Vector3 searchPosition = targetPosition;
 
-            // Проверяем, есть ли земля под нодом
-            if (Physics.Raycast(targetPosition + Vector3.up * 2f, Vector3.down, out groundHit, 20f))
+            // Проверяем, есть ли земля под нодом (не первый же коллайдер лута)
+            if (Physics.Raycast(targetPosition + Vector3.up * 2f, Vector3.down, out groundHit, 20f,
+                    PatrolGroundPhysicsMask, QueryTriggerInteraction.Ignore))
             {
                 searchPosition = groundHit.point + Vector3.up * 0.5f; // Немного поднимаем от земли
             }
@@ -1066,25 +1095,11 @@ public class DungeonMonster : Enemy
         float timeSinceDeath = Time.time - deathTime;
         bool timeCondition = timeSinceDeath >= respawnTime;
 
-        if (enableDebugLogs)
-        {
-            Debug.Log($"👹 DungeonMonster: CheckRespawn вызван. isDead: {isDead}, Время смерти: {deathTime:F2}, Текущее: {Time.time:F2}, Прошло: {timeSinceDeath:F2}с, Нужно: {respawnTime}с, Условие времени: {timeCondition}, isRespawning: {isRespawning}");
-        }
-
         if (isDead && timeCondition && !isRespawning)
         {
             if (enableDebugLogs)
-                Debug.Log($"👹 DungeonMonster: УСЛОВИЯ ВЫПОЛНЕНЫ! Запускаю респавн!");
+                Debug.Log("👹 DungeonMonster: условия респавна выполнены, запуск Respawn().");
             Respawn();
-        }
-        else if (enableDebugLogs)
-        {
-            if (!isDead)
-                Debug.Log($"  ❌ isDead = false");
-            if (!timeCondition)
-                Debug.Log($"  ❌ Время не прошло: {timeSinceDeath:F2} < {respawnTime}");
-            if (isRespawning)
-                Debug.Log($"  ❌ Уже респавнится");
         }
     }
 

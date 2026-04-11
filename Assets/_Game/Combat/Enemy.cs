@@ -17,7 +17,7 @@ public abstract class Enemy : MonoBehaviour
     [SerializeField] protected bool showHealthBar = false; // Отключен по умолчанию
 
     [Header("Debug")]
-    [SerializeField] protected bool enableDebugLogs = true;
+    [SerializeField] protected bool enableDebugLogs = false;
 
     protected bool isDead = false;
     protected float lastAttackTime;
