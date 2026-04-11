@@ -27,6 +27,23 @@ public class DungeonMonster : Enemy
     [SerializeField] private float chaseRange = 15f;
     [SerializeField] private float fieldOfViewAngle = 120f;
 
+    [Header("Процедурный данж")]
+    [Tooltip("Если задан — патруль по DungeonSpawnNode внутри сгенерированного данжа (родитель ItemSpawnNodesRoot).")]
+    [SerializeField] private ProceduralDungeonGenerator proceduralDungeon;
+    [SerializeField] private bool useProceduralSpawnNodesForPatrol = true;
+    [Tooltip("При старте и после Regenerate — телепорт на случайную точку пола в данже (не у входа).")]
+    [SerializeField] private bool relocateIntoProceduralDungeonOnReady = true;
+    [SerializeField] private float minDistanceFromDungeonEnterWhenRelocating = 7f;
+
+    [Header("Поведение в лабиринте")]
+    [Tooltip("Обнаружение без обзора и луча — «звук» в коридоре. 0 = выключено.")]
+    [SerializeField] private float hearingDetectionRange = 6.5f;
+    [Tooltip("Если нет зрения и слуха, но недавно видел — идёт сюда, пока не истечёт таймер.")]
+    [SerializeField] private bool useLastKnownPositionWhenLosBlocked = true;
+    [SerializeField] private float loseTargetAfterSecondsWithoutPerception = 3.5f;
+    [SerializeField] private float hitEnrageDuration = 2f;
+    [SerializeField] private float hitEnrageSpeedMultiplier = 1.35f;
+
     [Header("Respawn Settings")]
     [SerializeField] private float respawnTime = 10f;
     [SerializeField] private Vector3 spawnPosition;
@@ -60,6 +77,10 @@ public class DungeonMonster : Enemy
         Dead
     }
 
+    private float lastTimePerceivedPlayer;
+    private Vector3 lastKnownPlayerPosition;
+    private float enragedUntil;
+
     private enum PatrolMode
     {
         UseNodes,      // Патрулирование по нодам (если назначены)
@@ -67,6 +88,103 @@ public class DungeonMonster : Enemy
     }
 
     private MonsterState currentState = MonsterState.Patrolling;
+
+    private void OnEnable()
+    {
+        if (proceduralDungeon == null)
+            proceduralDungeon = FindObjectOfType<ProceduralDungeonGenerator>();
+
+        if (proceduralDungeon != null)
+            proceduralDungeon.OnAfterDungeonGenerated += OnDungeonGenerated;
+    }
+
+    private void OnDisable()
+    {
+        if (proceduralDungeon != null)
+            proceduralDungeon.OnAfterDungeonGenerated -= OnDungeonGenerated;
+    }
+
+    private void OnDungeonGenerated()
+    {
+        if (proceduralDungeon == null)
+            return;
+
+        if (relocateIntoProceduralDungeonOnReady && TryComputeRelocateFloorPosition(out Vector3 floorPos))
+        {
+            spawnPosition = floorPos;
+            if (!isDead)
+                ApplyWorldRelocate(floorPos);
+        }
+
+        if (!isDead)
+            RefreshPatrolAfterDungeonChange();
+    }
+
+    private void RefreshPatrolAfterDungeonChange()
+    {
+        if (patrolMode != PatrolMode.UseNodes)
+            return;
+
+        FindPatrolNodes();
+        isWaiting = false;
+        waitTimer = 0f;
+        if (!isDead && currentState == MonsterState.Patrolling && patrolNodes.Count > 0 && agent != null && agent.isOnNavMesh)
+            MoveToNextNode();
+    }
+
+    private bool TryComputeRelocateFloorPosition(out Vector3 floorPos)
+    {
+        floorPos = default;
+        if (proceduralDungeon == null)
+            return false;
+
+        Vector3 enterPos = proceduralDungeon.DungeonEnterSpawn != null
+            ? proceduralDungeon.DungeonEnterSpawn.position
+            : transform.position;
+
+        float minSqr = minDistanceFromDungeonEnterWhenRelocating * minDistanceFromDungeonEnterWhenRelocating;
+
+        for (int i = 0; i < 64; i++)
+        {
+            if (!proceduralDungeon.TryGetRandomFloorPosition(out Vector3 p, out _, 40))
+                break;
+            if ((p - enterPos).sqrMagnitude >= minSqr)
+            {
+                floorPos = p;
+                return true;
+            }
+        }
+
+        if (proceduralDungeon.TryGetRandomFloorPosition(out Vector3 fallback, out _, 32))
+        {
+            floorPos = fallback;
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryRelocateToProceduralDungeonFloor()
+    {
+        if (agent == null)
+            return false;
+        if (!TryComputeRelocateFloorPosition(out Vector3 p))
+            return false;
+        ApplyWorldRelocate(p);
+        return true;
+    }
+
+    private void ApplyWorldRelocate(Vector3 worldPos)
+    {
+        Vector3 pos = worldPos;
+        if (proceduralDungeon != null)
+            proceduralDungeon.TrySnapPositionToDungeonFloor(ref pos);
+
+        spawnPosition = pos;
+        transform.position = pos;
+        agent.Warp(pos);
+        TryPlaceOnNavMesh();
+    }
 
     protected override void Start()
     {
@@ -77,6 +195,12 @@ public class DungeonMonster : Enemy
         {
             agent = gameObject.AddComponent<NavMeshAgent>();
         }
+
+        if (proceduralDungeon == null)
+            proceduralDungeon = FindObjectOfType<ProceduralDungeonGenerator>();
+
+        if (relocateIntoProceduralDungeonOnReady && proceduralDungeon != null)
+            TryRelocateToProceduralDungeonFloor();
 
         // Сохраняем начальную позицию для респавна
         spawnPosition = transform.position;
@@ -150,7 +274,8 @@ public class DungeonMonster : Enemy
         if (isDead && currentState != MonsterState.Dead)
         {
             currentState = MonsterState.Dead;
-            Debug.Log($"💀 DungeonMonster: Обнаружен мертвый монстр, переключаю состояние на Dead");
+            if (enableDebugLogs)
+                Debug.Log($"💀 DungeonMonster: Обнаружен мертвый монстр, переключаю состояние на Dead");
         }
 
         switch (currentState)
@@ -186,8 +311,7 @@ public class DungeonMonster : Enemy
                 break;
 
             case MonsterState.Dead:
-                // Логируем каждую секунду для отладки
-                if (Time.frameCount % 60 == 0)
+                if (enableDebugLogs && Time.frameCount % 60 == 0)
                 {
                     Debug.Log($"💀 DungeonMonster: UpdateEnemy - Состояние Dead. isDead: {isDead}, Время смерти: {deathTime:F2}, Прошло: {Time.time - deathTime:F1}с, Нужно: {respawnTime}с, isRespawning: {isRespawning}, currentState: {currentState}");
                 }
@@ -273,6 +397,25 @@ public class DungeonMonster : Enemy
     private void FindPatrolNodes()
     {
         patrolNodes.Clear();
+
+        if (proceduralDungeon != null && useProceduralSpawnNodesForPatrol)
+        {
+            Transform procRoot = proceduralDungeon.ItemSpawnNodesRoot;
+            if (procRoot != null)
+            {
+                DungeonSpawnNode[] procNodes = procRoot.GetComponentsInChildren<DungeonSpawnNode>(true);
+                patrolNodes.AddRange(procNodes);
+                patrolNodes.RemoveAll(node =>
+                    node == null || !node.IsActive || !node.gameObject.activeInHierarchy);
+
+                if (patrolNodes.Count > 0)
+                {
+                    if (enableDebugLogs)
+                        Debug.Log($"✅ DungeonMonster: Патруль по {patrolNodes.Count} нодам процедурного данжа.");
+                    return;
+                }
+            }
+        }
 
         // Сначала пытаемся получить ноды через генератор
         if (nodeGenerator != null)
@@ -604,6 +747,33 @@ public class DungeonMonster : Enemy
     }
 
     /// <summary>
+    /// Зрение: дистанция, FOV и луч до игрока (не сквозь стену).
+    /// </summary>
+    private bool HasPlayerVisualContact(out RaycastHit hit)
+    {
+        hit = default;
+        if (playerTransform == null)
+            return false;
+
+        float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
+        if (distanceToPlayer > detectionRange)
+            return false;
+
+        Vector3 directionToPlayer = (playerTransform.position - transform.position).normalized;
+        float angleToPlayer = Vector3.Angle(transform.forward, directionToPlayer);
+        if (angleToPlayer > fieldOfViewAngle / 2f)
+            return false;
+
+        Vector3 rayStart = transform.position + Vector3.up * 1f;
+        if (!Physics.Raycast(rayStart, directionToPlayer, out hit, detectionRange))
+            return false;
+
+        PlayerController player = hit.collider.GetComponent<PlayerController>();
+        return player != null || hit.collider.transform == playerTransform ||
+               hit.collider.transform.IsChildOf(playerTransform);
+    }
+
+    /// <summary>
     /// Проверка обнаружения игрока
     /// </summary>
     private void CheckForPlayer()
@@ -612,30 +782,19 @@ public class DungeonMonster : Enemy
 
         float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
 
-        if (distanceToPlayer <= detectionRange)
+        if (hearingDetectionRange > 0.01f && distanceToPlayer <= hearingDetectionRange)
         {
-            // Проверяем, виден ли игрок (в пределах угла обзора и нет препятствий)
-            Vector3 directionToPlayer = (playerTransform.position - transform.position).normalized;
-            float angleToPlayer = Vector3.Angle(transform.forward, directionToPlayer);
+            lastKnownPlayerPosition = playerTransform.position;
+            lastTimePerceivedPlayer = Time.time;
+            StartChasing();
+            return;
+        }
 
-            if (angleToPlayer <= fieldOfViewAngle / 2f)
-            {
-                // Проверяем, нет ли препятствий между монстром и игроком
-                RaycastHit hit;
-                Vector3 rayStart = transform.position + Vector3.up * 1f; // Немного выше от земли
-                Vector3 rayEnd = playerTransform.position + Vector3.up * 1f;
-
-                if (Physics.Raycast(rayStart, directionToPlayer, out hit, detectionRange))
-                {
-                    // Проверяем, попал ли луч в игрока
-                    PlayerController player = hit.collider.GetComponent<PlayerController>();
-                    if (player != null || hit.collider.transform == playerTransform || hit.collider.transform.IsChildOf(playerTransform))
-                    {
-                        StartChasing();
-                        return;
-                    }
-                }
-            }
+        if (HasPlayerVisualContact(out _))
+        {
+            lastKnownPlayerPosition = playerTransform.position;
+            lastTimePerceivedPlayer = Time.time;
+            StartChasing();
         }
     }
 
@@ -648,7 +807,13 @@ public class DungeonMonster : Enemy
 
         currentState = MonsterState.Chasing;
         isChasing = true;
-        agent.speed = chaseSpeed;
+        if (playerTransform != null)
+        {
+            lastKnownPlayerPosition = playerTransform.position;
+            lastTimePerceivedPlayer = Time.time;
+        }
+
+        agent.speed = chaseSpeed * (Time.time < enragedUntil ? hitEnrageSpeedMultiplier : 1f);
         agent.stoppingDistance = attackRange;
 
         if (enableDebugLogs)
@@ -664,66 +829,72 @@ public class DungeonMonster : Enemy
     {
         if (playerTransform == null)
         {
-            // Игрок исчез, возвращаемся к патрулированию
             ReturnToPatrolling();
             return;
         }
 
-        // Если агент не на NavMesh, пытаемся восстановить его позицию
         if (!agent.isOnNavMesh)
         {
-            // Пытаемся разместить на NavMesh
             TryPlaceOnNavMesh();
-
-            // Если все еще не на NavMesh, возвращаемся к патрулированию
             if (!agent.isOnNavMesh)
             {
                 if (enableDebugLogs)
-                {
                     Debug.LogWarning("⚠ DungeonMonster: Агент не на NavMesh, возвращаюсь к патрулированию");
-                }
                 ReturnToPatrolling();
                 return;
             }
 
             if (enableDebugLogs)
-            {
                 Debug.Log("👹 DungeonMonster: Агент восстановлен на NavMesh во время преследования");
-            }
         }
 
         float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
 
         if (distanceToPlayer > chaseRange)
         {
-            // Игрок слишком далеко, возвращаемся к патрулированию
             ReturnToPatrolling();
             return;
         }
 
-        // Двигаемся к игроку (проверяем, что позиция игрока на NavMesh)
-        Vector3 targetPosition = playerTransform.position;
+        bool hear = hearingDetectionRange > 0.01f && distanceToPlayer <= hearingDetectionRange;
+        bool sight = HasPlayerVisualContact(out _);
 
-        // Пытаемся найти ближайшую точку на NavMesh к позиции игрока
-        NavMeshHit playerHit;
-        if (NavMesh.SamplePosition(targetPosition, out playerHit, 10f, NavMesh.AllAreas))
+        if (sight || hear)
         {
-            // Нашли точку на NavMesh, используем её
-            if (agent.destination != playerHit.position)
+            lastTimePerceivedPlayer = Time.time;
+            lastKnownPlayerPosition = playerTransform.position;
+        }
+        else if (useLastKnownPositionWhenLosBlocked)
+        {
+            if (Time.time - lastTimePerceivedPlayer > loseTargetAfterSecondsWithoutPerception)
             {
-                agent.SetDestination(playerHit.position);
+                ReturnToPatrolling();
+                return;
             }
         }
         else
         {
-            // Если позиция игрока не на NavMesh, используем прямую позицию (NavMeshAgent попытается найти путь)
-            if (agent.destination != targetPosition)
-            {
-                agent.SetDestination(targetPosition);
-            }
+            ReturnToPatrolling();
+            return;
         }
 
-        // Проверяем, можем ли атаковать
+        Vector3 moveGoal = sight || hear ? playerTransform.position : lastKnownPlayerPosition;
+
+        NavMeshHit playerHit;
+        if (NavMesh.SamplePosition(moveGoal, out playerHit, 10f, NavMesh.AllAreas))
+        {
+            if (agent.destination != playerHit.position)
+                agent.SetDestination(playerHit.position);
+        }
+        else if (agent.destination != moveGoal)
+        {
+            agent.SetDestination(moveGoal);
+        }
+
+        float spd = chaseSpeed * (Time.time < enragedUntil ? hitEnrageSpeedMultiplier : 1f);
+        agent.speed = spd;
+        agent.stoppingDistance = attackRange;
+
         if (distanceToPlayer <= attackRange && Time.time - lastAttackTime >= attackCooldown)
         {
             AttackPlayer();
@@ -782,6 +953,12 @@ public class DungeonMonster : Enemy
         if (isDead) return;
 
         base.TakeDamage(damageAmount);
+
+        if (hitEnrageDuration > 0f && hitEnrageSpeedMultiplier > 1f)
+            enragedUntil = Time.time + hitEnrageDuration;
+
+        if (currentState == MonsterState.Chasing && agent != null && agent.isOnNavMesh)
+            agent.speed = chaseSpeed * (Time.time < enragedUntil ? hitEnrageSpeedMultiplier : 1f);
 
         // Показываем числа урона
         if (showDamageNumbers)
@@ -856,13 +1033,15 @@ public class DungeonMonster : Enemy
 
     protected override void OnDeath()
     {
-        Debug.Log($"💀💀💀 DungeonMonster УМЕР! GameObject: {gameObject.name}, Позиция: {transform.position}");
-
         currentState = MonsterState.Dead;
         deathTime = Time.time;
         isRespawning = false;
 
-        Debug.Log($"💀 DungeonMonster: Установлено состояние Dead. Время смерти: {deathTime}, Респавн через {respawnTime} секунд");
+        if (enableDebugLogs)
+        {
+            Debug.Log($"💀💀💀 DungeonMonster УМЕР! GameObject: {gameObject.name}, Позиция: {transform.position}");
+            Debug.Log($"💀 DungeonMonster: Установлено состояние Dead. Время смерти: {deathTime}, Респавн через {respawnTime} секунд");
+        }
 
         // Останавливаем агента
         if (agent != null)
@@ -887,14 +1066,18 @@ public class DungeonMonster : Enemy
         float timeSinceDeath = Time.time - deathTime;
         bool timeCondition = timeSinceDeath >= respawnTime;
 
-        Debug.Log($"👹 DungeonMonster: CheckRespawn вызван. isDead: {isDead}, Время смерти: {deathTime:F2}, Текущее: {Time.time:F2}, Прошло: {timeSinceDeath:F2}с, Нужно: {respawnTime}с, Условие времени: {timeCondition}, isRespawning: {isRespawning}");
+        if (enableDebugLogs)
+        {
+            Debug.Log($"👹 DungeonMonster: CheckRespawn вызван. isDead: {isDead}, Время смерти: {deathTime:F2}, Текущее: {Time.time:F2}, Прошло: {timeSinceDeath:F2}с, Нужно: {respawnTime}с, Условие времени: {timeCondition}, isRespawning: {isRespawning}");
+        }
 
         if (isDead && timeCondition && !isRespawning)
         {
-            Debug.Log($"👹 DungeonMonster: УСЛОВИЯ ВЫПОЛНЕНЫ! Запускаю респавн!");
+            if (enableDebugLogs)
+                Debug.Log($"👹 DungeonMonster: УСЛОВИЯ ВЫПОЛНЕНЫ! Запускаю респавн!");
             Respawn();
         }
-        else
+        else if (enableDebugLogs)
         {
             if (!isDead)
                 Debug.Log($"  ❌ isDead = false");
@@ -910,7 +1093,10 @@ public class DungeonMonster : Enemy
     /// </summary>
     private void Respawn()
     {
-        Debug.Log($"👹 DungeonMonster: НАЧАЛО РЕСПАВНА! Позиция: {transform.position}, isDead: {isDead}");
+        if (enableDebugLogs)
+        {
+            Debug.Log($"👹 DungeonMonster: НАЧАЛО РЕСПАВНА! Позиция: {transform.position}, isDead: {isDead}");
+        }
 
         isRespawning = true;
 
@@ -918,7 +1104,8 @@ public class DungeonMonster : Enemy
         currentHealth = maxHealth;
         isDead = false;
 
-        Debug.Log($"👹 DungeonMonster: Здоровье восстановлено: {currentHealth}/{maxHealth}, isDead: {isDead}");
+        if (enableDebugLogs)
+            Debug.Log($"👹 DungeonMonster: Здоровье восстановлено: {currentHealth}/{maxHealth}, isDead: {isDead}");
 
         // Убеждаемся, что GameObject активен перед поиском компонентов
         if (!gameObject.activeSelf)
@@ -1253,6 +1440,12 @@ public class DungeonMonster : Enemy
         // Рисуем радиус обнаружения
         Gizmos.color = currentState == MonsterState.Chasing ? chaseGizmoColor : patrolGizmoColor;
         Gizmos.DrawWireSphere(transform.position, detectionRange);
+
+        if (hearingDetectionRange > 0.01f)
+        {
+            Gizmos.color = new Color(1f, 0.55f, 0.1f, 0.9f);
+            Gizmos.DrawWireSphere(transform.position + Vector3.up * 0.05f, hearingDetectionRange);
+        }
 
         // Рисуем направление взгляда
         Vector3 viewDirection = transform.forward * detectionRange;

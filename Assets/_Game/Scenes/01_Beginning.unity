@@ -16059,6 +16059,9 @@ MonoBehaviour:
     m_Bits: 256
   randomFloorRaycastStartAboveBounds: 2
   randomFloorMinUpNormalDot: 0.45
+  bakeNavMeshForGeneratedRooms: 1
+  navMeshFromPhysicsColliders: 1
+  navMeshMinRegionArea: 0.05
 --- !u!1 &1012672669
 GameObject:
   m_ObjectHideFlags: 0
@@ -16901,10 +16904,19 @@ MonoBehaviour:
   patrolAreaSize: {x: 20, y: 5, z: 20}
   wanderPointDistance: 5
   useTransformAsCenter: 1
-  chaseSpeed: 3
+  chaseSpeed: 4
   detectionRange: 20
   chaseRange: 15
   fieldOfViewAngle: 180
+  proceduralDungeon: {fileID: 1006535597}
+  useProceduralSpawnNodesForPatrol: 1
+  relocateIntoProceduralDungeonOnReady: 1
+  minDistanceFromDungeonEnterWhenRelocating: 7
+  hearingDetectionRange: 8
+  useLastKnownPositionWhenLosBlocked: 1
+  loseTargetAfterSecondsWithoutPerception: 3.5
+  hitEnrageDuration: 2
+  hitEnrageSpeedMultiplier: 1.5
   respawnTime: 10
   spawnPosition: {x: 0, y: 0, z: 0}
   showDamageNumbers: 1

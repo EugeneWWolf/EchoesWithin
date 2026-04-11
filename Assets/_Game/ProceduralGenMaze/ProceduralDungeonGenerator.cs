@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using Unity.AI.Navigation;
 using UnityEngine;
+using UnityEngine.AI;
 
 /// <summary>
 /// Процедурная сетка комнат из одного префаба.
@@ -94,6 +96,13 @@ public class ProceduralDungeonGenerator : MonoBehaviour
     [Tooltip("Минимум dot(нормаль, вверх) для «пола» при выборе попадания среди нескольких коллайдеров по одному лучу")]
     [SerializeField] [Range(0.2f, 0.99f)] private float randomFloorMinUpNormalDot = 0.45f;
 
+    [Header("NavMesh для агентов (после генерации)")]
+    [Tooltip("Печёт walkable NavMesh только по дочерним комнатам под GeneratedDungeonRooms. Без этого NavMeshAgent в процедурном данже не ходит и «висит».")]
+    [SerializeField] private bool bakeNavMeshForGeneratedRooms = true;
+    [SerializeField] private bool navMeshFromPhysicsColliders = true;
+    [Tooltip("Меньше — не выкидывает узкие коридоры при маленьком roomInstanceUniformScale.")]
+    [SerializeField] private float navMeshMinRegionArea = 0.05f;
+
     private Transform generatedRoot;
     private Transform itemSpawnNodesRoot;
     private RaycastHit[] randomFloorRaycastHits;
@@ -125,6 +134,7 @@ public class ProceduralDungeonGenerator : MonoBehaviour
     public void ClearGeneratedRooms()
     {
         EnsureGeneratedRoot();
+        ClearRuntimeNavMeshSurfaceData();
         for (int i = generatedRoot.childCount - 1; i >= 0; i--)
             Destroy(generatedRoot.GetChild(i).gameObject);
 
@@ -206,6 +216,8 @@ public class ProceduralDungeonGenerator : MonoBehaviour
 
         CreateItemSpawnNodesIfEnabled();
 
+        BakeNavMeshForGeneratedGeometryIfEnabled();
+
         OnAfterDungeonGenerated?.Invoke();
 
         Debug.Log($"ProceduralDungeonGenerator: сгенерировано {placedCells.Count} комнат (seed={seed}).");
@@ -273,6 +285,80 @@ public class ProceduralDungeonGenerator : MonoBehaviour
         {
             Debug.Log($"ProceduralDungeonGenerator: создано {placed.Count} нодов спавна предметов.");
         }
+    }
+
+    private void ClearRuntimeNavMeshSurfaceData()
+    {
+        if (generatedRoot == null)
+            return;
+
+        NavMeshSurface surface = generatedRoot.GetComponent<NavMeshSurface>();
+        if (surface != null)
+            surface.RemoveData();
+    }
+
+    private void BakeNavMeshForGeneratedGeometryIfEnabled()
+    {
+        if (!bakeNavMeshForGeneratedRooms)
+            return;
+        if (generatedRoot == null || generatedRoot.childCount == 0)
+            return;
+
+        Physics.SyncTransforms();
+
+        NavMeshSurface surface = generatedRoot.GetComponent<NavMeshSurface>();
+        if (surface == null)
+            surface = generatedRoot.gameObject.AddComponent<NavMeshSurface>();
+
+        surface.collectObjects = CollectObjects.Children;
+        surface.useGeometry = navMeshFromPhysicsColliders
+            ? NavMeshCollectGeometry.PhysicsColliders
+            : NavMeshCollectGeometry.RenderMeshes;
+
+        if (assignDungeonCollisionLayer && DungeonCollisionLayerIndex >= 0)
+            surface.layerMask = 1 << DungeonCollisionLayerIndex;
+        else
+            surface.layerMask = randomFloorRaycastMask.value != 0
+                ? randomFloorRaycastMask
+                : (LayerMask)Physics.DefaultRaycastLayers;
+
+        surface.defaultArea = 0;
+        surface.ignoreNavMeshAgent = true;
+        surface.ignoreNavMeshObstacle = true;
+        surface.minRegionArea = navMeshMinRegionArea;
+
+        surface.BuildNavMesh();
+
+        if (surface.navMeshData != null)
+            Debug.Log("ProceduralDungeonGenerator: NavMesh процедурного данжа пересобран.");
+        else
+        {
+            Debug.LogWarning(
+                "ProceduralDungeonGenerator: NavMesh bake не создал NavMeshData. Проверь слой коллайдеров комнат, " +
+                "что на полах есть MeshCollider (addMeshCollidersToRooms) и что navMeshFromPhysicsColliders совпадает с типом геометрии.");
+        }
+    }
+
+    /// <summary>
+    /// Подтягивает Y к полу данжа (те же слои и нормаль, что у спавн-нод).
+    /// </summary>
+    public bool TrySnapPositionToDungeonFloor(ref Vector3 worldPosition, float rayStartAbove = 6f, float rayLength = 80f)
+    {
+        int mask = randomFloorRaycastMask.value == 0 ? Physics.DefaultRaycastLayers : randomFloorRaycastMask.value;
+        Vector3 origin = worldPosition + Vector3.up * rayStartAbove;
+        EnsureRandomFloorHitBuffer();
+        int count = Physics.RaycastNonAlloc(
+            origin,
+            Vector3.down,
+            randomFloorRaycastHits,
+            rayStartAbove + rayLength,
+            mask,
+            QueryTriggerInteraction.Ignore);
+        if (!TryPickFloorHit(randomFloorRaycastHits, count, randomFloorMinUpNormalDot, out RaycastHit floorHit))
+            return false;
+
+        worldPosition = floorHit.point + Vector3.up * 0.06f;
+        return true;
     }
 
     private void EnsureGeneratedRoot()
