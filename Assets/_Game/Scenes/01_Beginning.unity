@@ -2492,6 +2492,8 @@ MonoBehaviour:
   - {fileID: 8002544368468477152, guid: 43e0eb98f5f79a9438c04b38f1eb6598, type: 3}
   useObjectPooling: 1
   poolSize: 50
+  snapLootBottomToDungeonFloor: 1
+  verboseItemFactoryLogs: 0
 --- !u!114 &908368366
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2613,7 +2615,7 @@ MonoBehaviour:
   roomCount: 12
   cellSize: {x: 24, y: 24}
   roomInstanceUniformScale: 0.4
-  randomSeed: 12345
+  randomSeed: 44444
   randomizeSeedOnPlay: 0
   flipPrefabUpDown: 0
   flipPrefabLeftRight: 0
@@ -2646,6 +2648,10 @@ MonoBehaviour:
   itemSpawnNodeCount: 48
   itemSpawnNodeMinSeparation: 2
   itemSpawnNodesRootName: ProceduralDungeonSpawnNodes
+  validateItemSpawnNodeWallClearance: 1
+  itemSpawnWallHorizontalProbeDistance: 0.42
+  itemSpawnWallProbeOriginYOffset: 0.22
+  itemSpawnWallRejectMaxAbsUpNormalDot: 0.5
   generateOnAwake: 1
   randomFloorRaycastMask:
     serializedVersion: 2
@@ -2820,6 +2826,9 @@ MonoBehaviour:
   relocateIntoProceduralDungeonOnReady: 1
   minDistanceFromDungeonEnterWhenRelocating: 7
   spawnMonsterInGraphFarthestRoomFromEntrance: 1
+  patrolGroundRaycastMask:
+    serializedVersion: 2
+    m_Bits: 0
   hearingDetectionRange: 8
   useLastKnownPositionWhenLosBlocked: 1
   loseTargetAfterSecondsWithoutPerception: 3.5
@@ -4318,17 +4327,18 @@ MonoBehaviour:
   - {fileID: 8471343069670946097, guid: 39c6522b390a3ff40818de2306b0b516, type: 3}
   - {fileID: 2869162013623264003, guid: 0102a052581cc4b49b1f89f5275f0e8c, type: 3}
   - {fileID: 8002544368468477152, guid: 43e0eb98f5f79a9438c04b38f1eb6598, type: 3}
+  buffLootStewPrefab: {fileID: 0}
   itemData:
   - itemName: Speedboost
     price: 20
     type: 1
-    statType: 0
+    statType: 4
     statValue: 5
     description: Test123
   - itemName: Jumpboost
     price: 50
     type: 1
-    statType: 1
+    statType: 0
     statValue: 5
     description: Test123
   - itemName: Dagger
@@ -5251,6 +5261,19 @@ MonoBehaviour:
   showSign: 1
   signText: "\u0423\u043B\u0435\u0442\u0435\u0442\u044C \u0441 \u043F\u043B\u0430\u043D\u0435\u0442\u044B"
   signHeight: 1
+  offerContinueChoiceWhenQuotaMet: 1
+  quotaMultiplierOnContinue: 4
+  continueQuotaAboveBalanceFraction: 0.25
+  choiceTitleText: "\u041A\u0432\u043E\u0442\u0430 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0430"
+  choiceBodyFormat: "\u0423 \u0432\u0430\u0441 ${0}. \u0421\u0435\u0439\u0447\u0430\u0441
+    \u0434\u043B\u044F \u0432\u044B\u043B\u0435\u0442\u0430 \u043D\u0443\u0436\u043D\u043E
+    ${1}.\n\u041F\u043E\u043A\u0438\u043D\u0443\u0442\u044C \u043F\u043B\u0430\u043D\u0435\u0442\u0443
+    \u0438\u043B\u0438 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C?
+    \u041D\u043E\u0432\u0430\u044F \u043A\u0432\u043E\u0442\u0430 \u0431\u0443\u0434\u0435\u0442
+    ${2}."
+  leaveButtonText: "\u041F\u043E\u043A\u0438\u043D\u0443\u0442\u044C \u043F\u043B\u0430\u043D\u0435\u0442\u0443"
+  continueButtonText: "\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C
+    \u0438\u0433\u0440\u0443"
 --- !u!1 &1715401051 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 1160928174161554, guid: c92cdb9d3b3e15f4b99ce98fe4c864b2, type: 3}
@@ -5461,6 +5484,8 @@ MonoBehaviour:
     maxValue: 50
   showDebugGizmos: 0
   gizmoColor: {r: 0, g: 1, b: 0, a: 1}
+  verboseSpawnLogs: 0
+  yieldEveryNItemsDuringFill: 4
 --- !u!1 &1783464648
 GameObject:
   m_ObjectHideFlags: 0
